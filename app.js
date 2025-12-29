@@ -1,1424 +1,1520 @@
-/* Battle for Britannia - Single Player Mobile PWA with AI + 2D SVG Map */
 
-const $ = (id) => document.getElementById(id);
+/* Battle for Britannia (mobile-first) - v3
+   Designed to match the uploaded board map (Board game map v2).
+   One human player, other kingdoms are AI. 2–5 total players.
 
-const KINGDOMS = {
-  "Wessex": { capital: "Winchester", historic: ["Winchester", "East Anglia", "Cornwall", "Sussex & Kent"] },
-  "Mercia": { capital: "Tamworth", historic: ["Tamworth", "Cheshire", "Hwicce", "Lindsey"] },
-  "Northumbria": { capital: "Bernicia", historic: ["Bernicia", "Deira", "Tynedale", "Lothian"] },
-  "Wales": { capital: "Gwynedd", historic: ["Gwynedd", "Powys", "Dyfed", "Gwent"] },
-  "Picts": { capital: "Scone", historic: ["Scone", "Strathclyde", "Moray", "Cumbria"] },
-};
+   Notes:
+   - Events + income/upkeep are automatic at the start of every player's turn (round 1 skips events).
+   - Isle of Man is transit-only: cannot be claimed or built upon.
+*/
 
-const REGIONS = {
-  "Winchester": { capital:true, terrainDef:0, slots:3, levyCap:3 },
-  "Tamworth": { capital:true, terrainDef:0, slots:3, levyCap:3 },
-  "Bernicia": { capital:true, terrainDef:1, slots:3, levyCap:3 },
-  "Gwynedd": { capital:true, terrainDef:1, slots:3, levyCap:3 },
-  "Scone": { capital:true, terrainDef:1, slots:3, levyCap:3 },
+const MAP = {"meta": {"name": "Board map v2", "version": 3}, "regions": {"MORAY": {"x": 720, "y": 110, "kingdom": "Picts", "capital": false, "terrain": "mountain"}, "SCONE": {"x": 790, "y": 260, "kingdom": "Picts", "capital": true, "terrain": "plains"}, "GALLOWAY": {"x": 560, "y": 440, "kingdom": "Picts", "capital": false, "terrain": "mountain"}, "CUMBRIA": {"x": 560, "y": 680, "kingdom": "Picts", "capital": false, "terrain": "mountain"}, "LOTHIAN": {"x": 860, "y": 360, "kingdom": "Northumbria", "capital": false, "terrain": "mountain"}, "BERNICIA": {"x": 860, "y": 500, "kingdom": "Northumbria", "capital": true, "terrain": "plains"}, "TYNEDALE": {"x": 860, "y": 660, "kingdom": "Northumbria", "capital": false, "terrain": "mountain"}, "DEIRA": {"x": 860, "y": 820, "kingdom": "Northumbria", "capital": false, "terrain": "plains"}, "GWYNEDD": {"x": 350, "y": 820, "kingdom": "Wales", "capital": true, "terrain": "mountain"}, "POWYS": {"x": 360, "y": 1010, "kingdom": "Wales", "capital": false, "terrain": "plains"}, "DYFED": {"x": 220, "y": 1180, "kingdom": "Wales", "capital": false, "terrain": "plains"}, "GWENT": {"x": 380, "y": 1180, "kingdom": "Wales", "capital": false, "terrain": "mountain"}, "CHESHIRE": {"x": 600, "y": 900, "kingdom": "Mercia", "capital": false, "terrain": "plains"}, "TAMWORTH": {"x": 600, "y": 1060, "kingdom": "Mercia", "capital": true, "terrain": "plains"}, "HWICCE": {"x": 600, "y": 1230, "kingdom": "Mercia", "capital": false, "terrain": "plains"}, "LINDSEY": {"x": 820, "y": 920, "kingdom": "Mercia", "capital": false, "terrain": "plains"}, "EAST_ANGLIA": {"x": 910, "y": 1090, "kingdom": "Wessex", "capital": false, "terrain": "plains"}, "SUSSEX_KENT": {"x": 910, "y": 1325, "kingdom": "Wessex", "capital": false, "terrain": "plains", "label": "SUSSEX & KENT"}, "WINCHESTER": {"x": 650, "y": 1380, "kingdom": "Wessex", "capital": true, "terrain": "plains"}, "CORNWALL": {"x": 330, "y": 1420, "kingdom": "Wessex", "capital": false, "terrain": "mountain"}, "ISLE_OF_MAN": {"x": 220, "y": 620, "kingdom": "Neutral", "capital": false, "terrain": "sea", "special": "transit_only", "label": "Isle of Man"}}, "edges": [["MORAY", "SCONE", 2], ["SCONE", "GALLOWAY", 1], ["SCONE", "LOTHIAN", 2], ["GALLOWAY", "LOTHIAN", 1], ["GALLOWAY", "CUMBRIA", 2], ["CUMBRIA", "CHESHIRE", 1], ["CUMBRIA", "TYNEDALE", 1], ["LOTHIAN", "BERNICIA", 1], ["BERNICIA", "TYNEDALE", 1], ["TYNEDALE", "DEIRA", 2], ["DEIRA", "LINDSEY", 2], ["LINDSEY", "EAST_ANGLIA", 1], ["EAST_ANGLIA", "SUSSEX_KENT", 2], ["SUSSEX_KENT", "WINCHESTER", 1], ["WINCHESTER", "HWICCE", 2], ["HWICCE", "TAMWORTH", 1], ["TAMWORTH", "CHESHIRE", 1], ["CHESHIRE", "POWYS", 1], ["POWYS", "GWYNEDD", 2], ["POWYS", "GWENT", 1], ["GWENT", "DYFED", 1], ["DYFED", "CORNWALL", 1], ["CORNWALL", "WINCHESTER", 2], ["ISLE_OF_MAN", "DYFED", 1], ["ISLE_OF_MAN", "GALLOWAY", 1], ["EAST_ANGLIA", "TYNEDALE", 2]]};
 
-  "East Anglia": { terrainDef:0, slots:2, levyCap:2 },
-  "Cornwall": { terrainDef:1, slots:2, levyCap:2 },
-  "Sussex & Kent": { terrainDef:0, slots:2, levyCap:2 },
+/** ---------- Utilities ---------- **/
+const $ = (sel) => document.querySelector(sel);
+const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+const rnd = (n)=>Math.floor(Math.random()*n);
+const pick = (arr)=>arr[rnd(arr.length)];
+const uid = ()=>Math.random().toString(36).slice(2,10);
 
-  "Cheshire": { terrainDef:0, slots:2, levyCap:2 },
-  "Hwicce": { terrainDef:0, slots:2, levyCap:2 },
-  "Lindsey": { terrainDef:0, slots:2, levyCap:2 },
+function logEntry(who, title, details=""){
+  const el = document.createElement("div");
+  el.className="entry";
+  el.innerHTML = `<div class="who">${escapeHtml(who)} — ${escapeHtml(title)}</div>` + (details?`<div class="small">${escapeHtml(details)}</div>`:"");
+  $("#log").prepend(el);
+}
+function escapeHtml(s){ return (s??"").toString().replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
 
-  "Deira": { terrainDef:0, slots:2, levyCap:2 },
-  "Tynedale": { terrainDef:1, slots:2, levyCap:2 },
-  "Lothian": { terrainDef:1, slots:2, levyCap:2 },
+function deepClone(o){ return JSON.parse(JSON.stringify(o)); }
 
-  "Powys": { terrainDef:1, slots:2, levyCap:2 },
-  "Dyfed": { terrainDef:1, slots:2, levyCap:2 },
-  "Gwent": { terrainDef:0, slots:2, levyCap:2 },
-
-  "Strathclyde": { terrainDef:1, slots:2, levyCap:2 },
-  "Moray": { terrainDef:1, slots:2, levyCap:2 },
-  "Cumbria": { terrainDef:1, slots:2, levyCap:2 },
-
-  "Isle of Man": { terrainDef:0, slots:0, levyCap:0, transitOnly:true }
-};
-
-/* IMPORTANT: edit to match your board exactly */
-let MAP = {
-  "Winchester": {"Sussex & Kent":1, "Hwicce":1},
-  "Sussex & Kent": {"Winchester":1, "East Anglia":1},
-  "East Anglia": {"Sussex & Kent":1, "Lindsey":1, "Tynedale":2}, // bypass example
-  "Cornwall": {"Hwicce":2},
-
-  "Tamworth": {"Cheshire":1, "Hwicce":1, "Lindsey":1},
-  "Cheshire": {"Tamworth":1, "Powys":2, "Isle of Man":2},
-  "Hwicce": {"Tamworth":1, "Winchester":1, "Cornwall":2, "Gwent":2},
-  "Lindsey": {"Tamworth":1, "East Anglia":1, "Deira":2},
-
-  "Gwynedd": {"Powys":1, "Dyfed":2},
-  "Powys": {"Gwynedd":1, "Cheshire":2, "Gwent":1},
-  "Dyfed": {"Gwynedd":2, "Gwent":1},
-  "Gwent": {"Dyfed":1, "Powys":1, "Hwicce":2},
-
-  "Bernicia": {"Tynedale":1, "Lothian":2, "Deira":1},
-  "Deira": {"Bernicia":1, "Lindsey":2, "Cumbria":2},
-  "Tynedale": {"Bernicia":1, "Cumbria":2, "East Anglia":2},
-  "Lothian": {"Bernicia":2, "Scone":2},
-
-  "Scone": {"Moray":2, "Strathclyde":2, "Lothian":2},
-  "Moray": {"Scone":2},
-  "Strathclyde": {"Scone":2, "Cumbria":1, "Isle of Man":2},
-  "Cumbria": {"Strathclyde":1, "Deira":2, "Tynedale":2},
-
-  "Isle of Man": {"Cheshire":2, "Strathclyde":2}
-};
-
-/* 2D layout: tweak coords to look like your board */
-let NODE_POS = {
-  "Cornwall": [120, 620],
-  "Winchester": [230, 540],
-  "Hwicce": [340, 500],
-  "Tamworth": [450, 440],
-  "Sussex & Kent": [320, 600],
-  "East Anglia": [520, 580],
-  "Lindsey": [560, 460],
-  "Cheshire": [330, 380],
-
-  "Gwent": [260, 460],
-  "Dyfed": [140, 430],
-  "Powys": [240, 360],
-  "Gwynedd": [160, 300],
-
-  "Deira": [640, 360],
-  "Bernicia": [740, 290],
-  "Tynedale": [700, 410],
-  "Cumbria": [520, 300],
-  "Lothian": [820, 210],
-
-  "Strathclyde": [560, 180],
-  "Isle of Man": [420, 260],
-  "Scone": [820, 120],
-  "Moray": [860, 60]
-};
-
-// Load local map overrides (stored on this device)
-try{
-  const saved = localStorage.getItem('britannia_map_override');
-  if(saved){
-    const obj = JSON.parse(saved);
-    if(obj && obj.MAP) MAP = obj.MAP;
-    if(obj && obj.NODE_POS) NODE_POS = obj.NODE_POS;
-  }
-}catch(e){}
-
-const BUILD_COSTS = { Farm:1, Market:2, Hall:3, Castle:3 };
-const CAPITAL_BASE = { food:1, silver:1 };
-const REGION_CONTROL_ROUNDS = 1;
-const CAPITAL_CAPTURE_ROUNDS = 2;
-const HIGH_KING_INFLUENCE = 15;
-const TERRITORY_EXTRA_BY_PLAYERS = {2:2,3:2,4:3,5:3};
-
-const EVENTS = [
-  ["Poor Harvest", 24],
-  ["Banditry", 24],
-  ["Local Unrest", 20],
-  ["Good Harvest", 24],
-  ["Trade Boom", 24],
-  ["Skilled Craftsmen", 16],
-  ["Noble Retinue Donated", 5],
-  ["Royal Favour", 5],
-  ["Bountiful Year", 5],
-  ["Major Revolt", 3],
-  ["Plague", 3],
-  ["Treasury Crisis", 3],
+/** ---------- Game data ---------- **/
+const KINGDOMS = [
+  {name:"Wessex", color:"#FBB84C", capitals:["WINCHESTER"], core:["WINCHESTER","SUSSEX_KENT","EAST_ANGLIA","CORNWALL"]},
+  {name:"Mercia", color:"#5EA1FF", capitals:["TAMWORTH"], core:["TAMWORTH","HWICCE","CHESHIRE","LINDSEY"]},
+  {name:"Northumbria", color:"#7CFFB2", capitals:["BERNICIA"], core:["BERNICIA","DEIRA","TYNEDALE","LOTHIAN"]},
+  {name:"Wales", color:"#FF6A8D", capitals:["GWYNEDD"], core:["GWYNEDD","POWYS","GWENT","DYFED"]},
+  {name:"Picts", color:"#C29BFF", capitals:["SCONE"], core:["SCONE","MORAY","GALLOWAY","CUMBRIA"]},
 ];
 
-function weightedPick(list){
-  const total = list.reduce((s,[,w])=>s+w,0);
-  let r = Math.random()*total;
-  for (const [name,w] of list){
-    r -= w;
-    if (r <= 0) return name;
-  }
-  return list[list.length-1][0];
-}
-function deepCopy(obj){ return JSON.parse(JSON.stringify(obj)); }
-function d6(){ return 1 + Math.floor(Math.random()*6); }
-function shuffle(arr){ for (let i=arr.length-1; i>0; i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } }
+const TERRAIN_DEF = { plains:0, mountain:1, sea:0 };
 
-let game = null;
-let history = [];
-let aiLock = false; // prevents recursive AI triggering
+const BUILDINGS = {
+  farm:{name:"Farm", icon:"🌾", cost:1, food:1, silver:0, inf:0, def:0, pillageable:true},
+  market:{name:"Market", icon:"💰", cost:2, food:0, silver:1, inf:0, def:0, pillageable:true},
+  hall:{name:"Hall", icon:"👑", cost:3, food:0, silver:0, inf:1, def:0, pillageable:true},
+  castle:{name:"Castle", icon:"🏰", cost:3, food:0, silver:0, inf:0, def:2, pillageable:false},
+};
 
-function newEmptyGame(){
-  return {
-    started:false,
-    round:1,
-    players: [],
-    playerOrder: [],
-    currentIdx: 0,
-    ap: 2,
-    buildDiscount: {},
-    didEventThisTurn: {},
-    didIncomeThisTurn: {},
-    regions: Object.fromEntries(Object.entries(REGIONS).map(([name,meta]) => [
-      name, {
-        name,
-        owner: null,
-        stored: 0,
-        armies: {}, // pid -> units
-        buildings: { Farm:0, Market:0, Hall:0, Castle:0 },
-        occupation: { timer:0, sole:null },
-        meta: {...meta}
+const EVENTS = [
+  {name:"Good Harvest", rarity:1, text:"+2 Food.", apply:(g,p)=>{p.food+=2; return "+2 Food";}},
+  {name:"Poor Harvest", rarity:1, text:"-1 Food.", apply:(g,p)=>{p.food=Math.max(0,p.food-1); return "-1 Food";}},
+  {name:"Trade Boom", rarity:1, text:"+2 Silver.", apply:(g,p)=>{p.silver+=2; return "+2 Silver";}},
+  {name:"Banditry", rarity:1, text:"-1 Silver.", apply:(g,p)=>{p.silver=Math.max(0,p.silver-1); return "-1 Silver";}},
+  {name:"Royal Favour", rarity:2, text:"+1 Influence.", apply:(g,p)=>{p.inf+=1; return "+1 Influence";}},
+  {name:"Plague", rarity:2, text:"Disband 1 active unit (if any).", apply:(g,p)=>{
+    const a = firstArmyOf(p);
+    if(!a) return "No active units.";
+    a.units -= 1;
+    if(a.units<=0) removeArmy(g,a.id);
+    return "Lost 1 unit to plague";
+  }},
+  {name:"Major Revolt", rarity:5, text:"Pay 2 Silver or lose control of a non-capital region.", apply:(g,p)=>{
+    const opts = ownedRegions(g,p).filter(r=>!isCapital(r) && !isTransitOnly(r));
+    if(opts.length===0) return "No eligible region.";
+    if(p.silver>=2){
+      // human may choose; AI pays
+      if(isHuman(p)){
+        g.pendingPrompt = {type:"revolt", playerId:p.id, regions:opts.map(r=>r.key)};
+        return "Choice required";
+      } else {
+        p.silver-=2; return "Paid 2 Silver to stop revolt";
       }
-    ])),
-    selection: { A:null, B:null },
-    log: [],
-    winner: null,
-    humanId: null,
-    turnSummaries: [],
-    _turnStartLog: 0
+    } else {
+      const lose = pick(opts);
+      g.regionState[lose.key].owner=null;
+      return `Lost control of ${labelOf(lose.key)}`;
+    }
+  }},
+];
+
+// weighted draw: lower rarity => more common
+function drawEvent(){
+  const pool = [];
+  for(const e of EVENTS){
+    const weight = Math.max(1, 6 - e.rarity);
+    for(let i=0;i<weight;i++) pool.push(e);
+  }
+  return pick(pool);
+}
+
+/** ---------- State ---------- **/
+let G = null;
+
+function newGameConfig(){
+  return {
+    playersTotal: parseInt($("#selPlayers").value,10),
+    humanKingdom: $("#selKingdom").value,
+    humanName: ($("#inpName").value||"You").trim(),
   };
 }
 
-function log(msg){
-  game.log.push(msg);
-  const el = $("log");
-  el.textContent = game.log.slice(-250).join("\n");
-  el.scrollTop = el.scrollHeight;
-}
+function initGame(cfg){
+  const kingdomsInPlay = chooseKingdoms(cfg.humanKingdom, cfg.playersTotal);
 
-function pushHistory(){
-  history.push(deepCopy(game));
-  if (history.length > 60) history.shift();
-}
-
-function undo(){
-  if (history.length === 0) return;
-  game = history.pop();
-  renderAll();
-  log("Undo.");
-  maybeRunAI();
-}
-
-function currentPlayer(){
-  return game.players[ game.playerOrder[game.currentIdx] ];
-}
-function countActiveUnits(pid){
-  let total = 0;
-  for (const rs of Object.values(game.regions)){
-    total += Number(rs.armies[pid] || 0);
-  }
-  return total;
-}
-function controlledRegions(pid){
-  return Object.values(game.regions).filter(rs => rs.owner === pid && !rs.meta.outOfPlay);
-}
-function regionArmiesText(rs){
-  const parts = [];
-  for (const [pid, units] of Object.entries(rs.armies)){
-    const u = Number(units);
-    if (u>0){
-      const pl = game.players[Number(pid)];
-      parts.push(`${pl.name}:${u}`);
-    }
-  }
-  return parts.length ? parts.join(" • ") : "none";
-}
-function regionLabelOwner(rs){
-  if (rs.meta.transitOnly) return "Transit-only";
-  if (rs.meta.outOfPlay) return "Out of play";
-  if (rs.owner === null) return "—";
-  const pl = game.players[rs.owner];
-  return pl ? pl.name : "—";
-}
-function totalBuildings(rs){
-  const b = rs.buildings;
-  return b.Farm + b.Market + b.Hall + b.Castle;
-}
-
-function populateSetup(){
-  const kSel = $("yourKingdom");
-  kSel.innerHTML = Object.keys(KINGDOMS).map(k=>`<option value="${k}">${k}</option>`).join("");
-}
-populateSetup();
-
-function startSinglePlayerGame(totalPlayers, yourName, yourKingdom){
-  game = newEmptyGame();
-  game.started = true;
-
-  const allKingdoms = Object.keys(KINGDOMS).filter(k=>k !== yourKingdom);
-  shuffle(allKingdoms);
-
-  const picks = [{ name: yourName || "You", kingdom: yourKingdom, human:true }];
-  while (picks.length < totalPlayers){
-    const k = allKingdoms.shift();
-    picks.push({ name: `AI (${k})`, kingdom: k, human:false });
-  }
-
-  game.players = picks.map((p, idx)=>({
-    id: idx,
-    name: p.name,
-    kingdom: p.kingdom,
-    capital: KINGDOMS[p.kingdom].capital,
-    historic: KINGDOMS[p.kingdom].historic,
+  const players = kingdomsInPlay.map((k, idx)=>({
+    id: uid(),
+    name: idx===0 ? cfg.humanName : k.name,
+    kingdom: k.name,
+    color: k.color,
     food: 2,
     silver: 2,
-    influence: 0,
-    alive: true,
-    ai: !p.human
+    inf: 0,
+    eliminated: false,
   }));
 
-  game.humanId = game.players.find(p=>!p.ai).id;
-
-  // scaling rule: only used kingdoms' regions
-  const used = new Set(["Isle of Man"]);
-  for (const pl of game.players){
-    for (const r of pl.historic) used.add(r);
-  }
-  for (const rName of Object.keys(game.regions)){
-    if (!used.has(rName)) game.regions[rName].meta.outOfPlay = true;
+  // shuffle turn order, but keep human in list (not necessarily first)
+  const order = [...players.map(p=>p.id)];
+  // randomize but keep stable-ish
+  for(let i=order.length-1;i>0;i--){
+    const j=rnd(i+1); [order[i],order[j]]=[order[j],order[i]];
   }
 
-  // Initial ownership + 1 stored levy in capital
-  for (const pl of game.players){
-    const cap = game.regions[pl.capital];
-    cap.owner = pl.id;
-    cap.stored = 1;
+  const activeRegions = activeRegionKeysFor(kingdomsInPlay.map(k=>k.name));
+  const regionState = {};
+  for(const [key, reg] of Object.entries(MAP.regions)){
+    if(!activeRegions.has(key)){ continue; }
+    regionState[key] = {
+      owner: null,
+      // reserve levies stored in this region
+      reserve: 0,
+      buildings: [],
+      contest: null, // {occupierPlayerId, turnsHeld}
+    };
   }
 
-  game.playerOrder = game.players.map(p=>p.id);
-  shuffle(game.playerOrder);
-  game.currentIdx = 0;
-  game.ap = 2;
-  game.round = 1;
-  game.buildDiscount = Object.fromEntries(game.players.map(p=>[p.id,0]));
-  game.didEventThisTurn = Object.fromEntries(game.players.map(p=>[p.id,false]));
-  game.didIncomeThisTurn = Object.fromEntries(game.players.map(p=>[p.id,false]));
+  // starting control: each player controls their capital only, and gains 1 reserve levy in that capital
+  for(const p of players){
+    const cap = capitalOf(p.kingdom);
+    if(regionState[cap]){
+      regionState[cap].owner = p.id;
+      regionState[cap].reserve = 1;
+      // optional: give a starting castle to capitals? not requested now.
+    }
+  }
 
-  log(`Game started. First player: ${currentPlayer().name}. Round 1 skips events.`);
-  startTurnFor(currentPlayer().id);
-  renderAll();
-  maybeRunAI();
+  const g = {
+    version: 3,
+    cfg,
+    kingdomsInPlay: kingdomsInPlay.map(k=>k.name),
+    activeRegions: Array.from(activeRegions),
+    regionState,
+    players,
+    turnOrder: order,
+    turnIndex: 0,
+    round: 1,
+    ap: 2,
+    armies: [], // {id, playerId, regionKey, units}
+    selected: { regionKey:null, armyId:null },
+    mode: "setup", // setup | playing
+    pendingPrompt: null,
+    aiTurnSummary: "",
+  };
+
+  return g;
 }
 
-/* --- Turn flow --- */
+function chooseKingdoms(humanKingdom, totalPlayers){
+  const human = KINGDOMS.find(k=>k.name===humanKingdom) || KINGDOMS[0];
+  const others = KINGDOMS.filter(k=>k.name!==human.name);
+  // random choose others for AIs
+  const ai = [];
+  while(ai.length < totalPlayers-1){
+    const k = pick(others.filter(x=>!ai.includes(x)));
+    ai.push(k);
+  }
+  return [human, ...ai];
+}
 
-function endTurn(){
-  // record a compact summary of what happened this turn
-  try{
-    const actor = currentPlayer();
-    const slice = game.log.slice(game._turnStartLog);
-    game.turnSummaries.unshift({ round: game.round, who: actor.name, lines: slice.slice(-40) });
-    game.turnSummaries = game.turnSummaries.slice(0, 12);
-  }catch(e){}
+function activeRegionKeysFor(kingdomNames){
+  // remove unused kingdoms' regions entirely
+  const set = new Set();
+  for(const [key, reg] of Object.entries(MAP.regions)){
+    if(reg.special==="transit_only"){ set.add(key); continue; }
+    if(kingdomNames.includes(reg.kingdom)) set.add(key);
+  }
+  // keep coast bypass edges that may cross removed areas already handled because nodes removed.
+  return set;
+}
 
-  pushHistory();
+function playerById(id){ return G.players.find(p=>p.id===id); }
+function playerByKingdom(name){ return G.players.find(p=>p.kingdom===name); }
+function currentPlayer(){ return playerById(G.turnOrder[G.turnIndex]); }
+function isHuman(p){ return p.id === humanPlayer().id; }
+function humanPlayer(){ return G.players.find(p=>p.name===G.cfg.humanName) || G.players[0]; }
 
-  resolveOccupationAndControl();
-  const winner = checkVictory();
-  if (winner !== null){
-    game.winner = winner;
-    log(`🏆 ${game.players[winner].name} wins!`);
-    renderAll();
+function labelOf(regionKey){
+  const r = MAP.regions[regionKey];
+  return r.label || regionKey.replaceAll("_"," ");
+}
+function isCapital(regionKey){ return !!MAP.regions[regionKey]?.capital; }
+function isTransitOnly(regionKey){ return MAP.regions[regionKey]?.special === "transit_only"; }
+
+function capitalOf(kingdom){
+  const k = KINGDOMS.find(x=>x.name===kingdom);
+  return k?.capitals?.[0];
+}
+
+function ownedRegions(g, p){
+  const out=[];
+  for(const [k, st] of Object.entries(g.regionState)){
+    if(st.owner===p.id) out.push({key:k, ...MAP.regions[k]});
+  }
+  return out;
+}
+function firstArmyOf(p){
+  return G.armies.find(a=>a.playerId===p.id);
+}
+function armiesInRegion(regionKey){
+  return G.armies.filter(a=>a.regionKey===regionKey);
+}
+function friendlyArmiesInRegion(p, regionKey){
+  return G.armies.filter(a=>a.regionKey===regionKey && a.playerId===p.id);
+}
+function enemyArmiesInRegion(p, regionKey){
+  return G.armies.filter(a=>a.regionKey===regionKey && a.playerId!==p.id);
+}
+function removeArmy(g, armyId){
+  const idx = g.armies.findIndex(a=>a.id===armyId);
+  if(idx>=0) g.armies.splice(idx,1);
+}
+
+/** ---------- Rendering ---------- **/
+let scale = 1;
+let pan = {x:0,y:0};
+let isPanning=false;
+let panStart=null;
+
+function setupMapUI(){
+  const viewport = $("#mapViewport");
+  const stage = $("#mapStage");
+
+  const applyTransform = ()=>{
+    stage.style.transform = `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${scale})`;
+  };
+
+  viewport.addEventListener("pointerdown",(e)=>{
+    isPanning=true;
+    panStart={x:e.clientX, y:e.clientY, px:pan.x, py:pan.y};
+    viewport.setPointerCapture(e.pointerId);
+  });
+  viewport.addEventListener("pointermove",(e)=>{
+    if(!isPanning) return;
+    const dx=e.clientX-panStart.x;
+    const dy=e.clientY-panStart.y;
+    pan.x = panStart.px + dx;
+    pan.y = panStart.py + dy;
+    applyTransform();
+  });
+  viewport.addEventListener("pointerup",(e)=>{
+    isPanning=false;
+  });
+
+  $("#zoomIn").addEventListener("click",()=>{ scale=clamp(scale+0.12,0.7,2.2); applyTransform(); });
+  $("#zoomOut").addEventListener("click",()=>{ scale=clamp(scale-0.12,0.7,2.2); applyTransform(); });
+  $("#zoomReset").addEventListener("click",()=>{ scale=1; pan={x:0,y:0}; applyTransform(); });
+
+  applyTransform();
+}
+
+function renderOverlay(){
+  const overlay = $("#overlay");
+  overlay.innerHTML = "";
+
+  // draw edges (movement links) with subtle glow; label costs
+  const edges = MAP.edges
+    .filter(([a,b])=> G.activeRegions.includes(a) && G.activeRegions.includes(b));
+
+  for(const [a,b,cost] of edges){
+    const ra=MAP.regions[a], rb=MAP.regions[b];
+    if(!ra||!rb) continue;
+    const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+    line.setAttribute("x1", ra.x); line.setAttribute("y1", ra.y);
+    line.setAttribute("x2", rb.x); line.setAttribute("y2", rb.y);
+    line.setAttribute("stroke", "rgba(255,255,255,.18)");
+    line.setAttribute("stroke-width", "3");
+    line.setAttribute("stroke-linecap", "round");
+    line.setAttribute("vector-effect","non-scaling-stroke");
+    overlay.appendChild(line);
+
+    const mx=(ra.x+rb.x)/2, my=(ra.y+rb.y)/2;
+    const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+    t.setAttribute("x", mx); t.setAttribute("y", my);
+    t.setAttribute("fill","rgba(255,255,255,.85)");
+    t.setAttribute("font-size","18");
+    t.setAttribute("font-weight","900");
+    t.setAttribute("text-anchor","middle");
+    t.setAttribute("dominant-baseline","middle");
+    t.textContent = cost;
+    t.style.paintOrder="stroke";
+    t.style.stroke="rgba(0,0,0,.7)";
+    t.style.strokeWidth="4px";
+    overlay.appendChild(t);
+  }
+}
+
+function renderRegions(){
+  // region dots + labels in DOM for clickability (better on mobile)
+  const stage = $("#mapStage");
+  // remove previous dots/labels but keep bg/img/svg/tokens
+  stage.querySelectorAll(".regionDot,.regionLabel,.capIcon").forEach(n=>n.remove());
+
+  for(const key of G.activeRegions){
+    const r = MAP.regions[key];
+    if(!r) continue;
+
+    // dot
+    const dot = document.createElement("div");
+    dot.className="regionDot";
+    dot.style.left = r.x+"px";
+    dot.style.top  = r.y+"px";
+    dot.dataset.region = key;
+    dot.addEventListener("click",(e)=>{
+      e.stopPropagation();
+      selectRegion(key);
+    });
+    stage.appendChild(dot);
+
+    // label
+    const lab = document.createElement("div");
+    lab.className="regionLabel";
+    lab.style.left = r.x+"px";
+    lab.style.top  = (r.y - 26)+"px";
+    lab.textContent = labelOf(key);
+    stage.appendChild(lab);
+
+    // capital icon
+    if(r.capital){
+      const ci = document.createElement("div");
+      ci.className="capIcon";
+      ci.style.left = (r.x + 28)+"px";
+      ci.style.top  = (r.y - 10)+"px";
+      ci.textContent="👑";
+      stage.appendChild(ci);
+    }
+  }
+}
+
+function renderTokens(){
+  const tokens = $("#tokens");
+  tokens.innerHTML = "";
+  const p = currentPlayer();
+
+  // draw control flags subtly by colouring region dots border (owner)
+  document.querySelectorAll(".regionDot").forEach(dot=>{
+    const key = dot.dataset.region;
+    const st = G.regionState[key];
+    dot.style.background = "rgba(0,0,0,.25)";
+    dot.style.borderColor = "rgba(255,255,255,.55)";
+    if(st?.owner){
+      const owner = playerById(st.owner);
+      dot.style.borderColor = owner.color;
+      dot.style.background = owner.color + "33";
+    }
+    if(st?.contest){
+      dot.style.borderColor = "rgba(255,255,255,.95)";
+      dot.style.background = "rgba(255,87,87,.18)";
+    }
+  });
+
+  // army tokens
+  for(const a of G.armies){
+    if(!G.activeRegions.includes(a.regionKey)) continue;
+    const reg = MAP.regions[a.regionKey];
+    const owner = playerById(a.playerId);
+    const el = document.createElement("div");
+    el.className = "token";
+    if(G.selected.armyId===a.id) el.classList.add("sel");
+    el.style.left = reg.x + "px";
+    el.style.top  = reg.y + "px";
+    el.style.background = owner.color;
+    el.textContent = a.units;
+    const sm = document.createElement("small");
+    sm.textContent = owner.kingdom;
+    el.appendChild(sm);
+    el.addEventListener("click",(e)=>{
+      e.stopPropagation();
+      if(owner.id !== humanPlayer().id){ // allow selecting enemy for info
+        selectRegion(a.regionKey);
+        return;
+      }
+      selectArmy(a.id);
+    });
+    tokens.appendChild(el);
+  }
+}
+
+function renderUI(){
+  const p = currentPlayer();
+  const human = humanPlayer();
+
+  $("#subtitle").textContent = `You: ${human.kingdom} • ${G.players.length-1} AI`;
+
+  // setup/turn panel toggle
+  $("#setupCard").classList.toggle("hidden", G.mode!=="setup");
+  $("#turnCard").classList.toggle("hidden", G.mode!=="playing");
+  $("#logCard").classList.toggle("hidden", G.mode!=="playing");
+
+  // HUD
+  $("#pillTurn").textContent = `Round ${G.round} • ${isHuman(p) ? "Your turn" : p.kingdom + " (AI)"}`;
+  $("#pillAP").textContent = `AP: ${G.ap}`;
+
+  $("#resFood").textContent = `🍞 ${human.food}`;
+  $("#resSilver").textContent = `💰 ${human.silver}`;
+  $("#resInf").textContent = `👑 ${human.inf}`;
+  $("#resUnits").textContent = `⚔️ ${G.armies.filter(a=>a.playerId===human.id).reduce((s,a)=>s+a.units,0)} active`;
+
+  // context
+  $("#aiSummary").textContent = G.aiTurnSummary || "—";
+  $("#selectedInfo").textContent = selectedInfoText();
+
+  // action enable/disable
+  const hasSelection = !!G.selected.regionKey || !!G.selected.armyId;
+  $("#btnMove").disabled   = !canMove();
+  $("#btnAttack").disabled = !canAttack();
+  $("#btnRecruit").disabled= !canRecruit();
+  $("#btnCallup").disabled = !canCallup();
+  $("#btnBuild").disabled  = !canBuild();
+  $("#btnPillage").disabled= !canPillage();
+  $("#btnDisband").disabled= !canDisband();
+  $("#btnEnd").disabled    = !(G.mode==="playing" && isHuman(p));
+
+  // selected marker
+  document.querySelectorAll(".regionDot").forEach(dot=>{
+    dot.classList.toggle("sel", dot.dataset.region===G.selected.regionKey);
+  });
+
+  renderOverlay();
+  renderTokens();
+}
+
+function selectedInfoText(){
+  const lines=[];
+  if(G.selected.armyId){
+    const a = G.armies.find(x=>x.id===G.selected.armyId);
+    if(a){
+      lines.push(`Army: ${a.units} (${playerById(a.playerId).kingdom})`);
+      lines.push(`Location: ${labelOf(a.regionKey)}`);
+    }
+  }
+  if(G.selected.regionKey){
+    const key = G.selected.regionKey;
+    const st = G.regionState[key];
+    const owner = st.owner ? playerById(st.owner).kingdom : "None";
+    lines.push(`Region: ${labelOf(key)}`);
+    lines.push(`Owner: ${owner}`);
+    lines.push(`Reserve: ${st.reserve}`);
+    const b = st.buildings.map(x=>BUILDINGS[x].icon).join(" ");
+    lines.push(`Buildings: ${b||"—"}`);
+    if(st.contest){
+      lines.push(`Contested: held ${st.contest.turnsHeld}/`+(isCapital(key)?2:1));
+    }
+  }
+  return lines.join("\n") || "—";
+}
+
+/** ---------- Selection ---------- **/
+function selectRegion(key){
+  G.selected.regionKey = key;
+  G.selected.armyId = null;
+  $("#contextLine").textContent = `Selected region: ${labelOf(key)}`;
+  renderUI();
+}
+function selectArmy(armyId){
+  const a = G.armies.find(x=>x.id===armyId);
+  if(!a) return;
+  G.selected.armyId = armyId;
+  G.selected.regionKey = a.regionKey;
+  $("#contextLine").textContent = `Selected army in ${labelOf(a.regionKey)} (${a.units})`;
+  renderUI();
+}
+
+/** ---------- Actions eligibility ---------- **/
+function canMove(){
+  const p = currentPlayer();
+  if(!isHuman(p) || G.ap<=0) return false;
+  if(!G.selected.armyId) return false;
+  const a = G.armies.find(x=>x.id===G.selected.armyId);
+  if(!a || a.playerId!==p.id) return false;
+  return neighbors(a.regionKey).some(n=>n.cost<=G.ap);
+}
+function canAttack(){
+  const p = currentPlayer();
+  if(!isHuman(p) || G.ap<1) return false;
+  const key = G.selected.regionKey;
+  if(!key) return false;
+  const enemies = enemyArmiesInRegion(p, key);
+  const friend = friendlyArmiesInRegion(p, key);
+  return enemies.length>0 && friend.length>0;
+}
+function canRecruit(){
+  const p = currentPlayer();
+  if(!isHuman(p) || G.ap<1) return false;
+  if(p.silver<1) return false;
+  const key = G.selected.regionKey;
+  if(!key) return false;
+  const st = G.regionState[key];
+  if(!st || st.owner!==p.id) return false;
+  if(isTransitOnly(key)) return false;
+  const max = isCapital(key)?3:2;
+  return st.reserve < max;
+}
+function canCallup(){
+  const p = currentPlayer();
+  if(!isHuman(p)) return false;
+  const totalReserve = ownedRegions(G,p).reduce((s,r)=>s+G.regionState[r.key].reserve,0);
+  if(totalReserve<=0) return false;
+  return G.ap>=1;
+}
+function canBuild(){
+  const p=currentPlayer();
+  if(!isHuman(p) || G.ap<1) return false;
+  const key=G.selected.regionKey;
+  if(!key) return false;
+  const st=G.regionState[key];
+  if(!st || st.owner!==p.id) return false;
+  if(isTransitOnly(key)) return false;
+  const maxSlots = isCapital(key)?3:2;
+  return st.buildings.length < maxSlots;
+}
+function canPillage(){
+  const p=currentPlayer();
+  if(!isHuman(p) || G.ap<1) return false;
+  const key=G.selected.regionKey;
+  if(!key) return false;
+  if(isTransitOnly(key)) return false;
+  const st=G.regionState[key];
+  const friend = friendlyArmiesInRegion(p,key);
+  if(friend.length===0) return false;
+  if(st.owner===p.id) return false;
+  if(st.buildings.length===0) return false;
+  return true;
+}
+function canDisband(){
+  const p=currentPlayer();
+  if(!isHuman(p) || G.ap<1) return false;
+  if(!G.selected.armyId) return false;
+  const a = G.armies.find(x=>x.id===G.selected.armyId);
+  return a && a.playerId===p.id && a.units>0;
+}
+
+/** ---------- Map graph ---------- **/
+function neighbors(regionKey){
+  const out=[];
+  for(const [a,b,c] of MAP.edges){
+    if(!G.activeRegions.includes(a) || !G.activeRegions.includes(b)) continue;
+    if(a===regionKey) out.push({key:b, cost:c});
+    else if(b===regionKey) out.push({key:a, cost:c});
+  }
+  return out;
+}
+
+/** ---------- Core mechanics ---------- **/
+function startGame(){
+  G = initGame(newGameConfig());
+  G.mode="playing";
+  // show map labels
+  renderRegions();
+  renderOverlay();
+  // auto-run start of first player's turn (round 1 no event)
+  beginTurn();
+  renderUI();
+}
+
+function beginTurn(){
+  const p = currentPlayer();
+  G.ap = 2;
+  G.aiTurnSummary = "";
+
+  // auto phases: event (skip round 1), income, upkeep
+  const eventsAllowed = G.round >= 2;
+  if(eventsAllowed){
+    const e = drawEvent();
+    const result = e.apply(G,p);
+    logEntry(p.kingdom, `Event: ${e.name}`, e.text + (result && result!=="Choice required" ? ` • ${result}` : ""));
+    if(G.pendingPrompt){
+      // handled immediately for human before continuing
+      handlePendingPrompt();
+      return;
+    }
+  }
+
+  const inc = applyIncomeAndUpkeep(p);
+  logEntry(p.kingdom, "Income & upkeep", inc.summary);
+
+  // if upkeep forced disband for human, prompt and pause; AI disbands automatically in applyIncomeAndUpkeep
+  if(inc.needsHumanDisband){
+    promptHumanDisband(inc.needsHumanDisband);
     return;
   }
 
-  // next living player
-  game.currentIdx = (game.currentIdx + 1) % game.playerOrder.length;
-  for (let i=0; i<game.playerOrder.length; i++){
-    if (currentPlayer().alive) break;
-    game.currentIdx = (game.currentIdx + 1) % game.playerOrder.length;
+  // AI plays immediately
+  if(!isHuman(p)){
+    runAIturn(p);
+  } else {
+    logEntry("System","Your turn", "Select an army/region, then use actions. Events and upkeep are automatic.");
   }
 
-  const pid = currentPlayer().id;
-  game.ap = 2;
-  game.selection = {A:null, B:null};
-  game.didEventThisTurn[pid] = false;
-  game.didIncomeThisTurn[pid] = false;
-
-  // new round when looped
-  if (game.currentIdx === 0){
-    game.round += 1;
-    game.buildDiscount = Object.fromEntries(game.players.map(p=>[p.id,0]));
-    log(`— Round ${game.round} begins. —`);
-  }
-
-  startTurnFor(pid);
-  renderAll();
-  maybeRunAI();
+  checkVictory();
+  renderUI();
 }
 
-function resolveOccupationAndControl(){
-  for (const rs of Object.values(game.regions)){
-    if (rs.meta.outOfPlay || rs.meta.transitOnly) {
-      rs.occupation.timer = 0;
-      rs.occupation.sole = null;
-      continue;
+function applyIncomeAndUpkeep(p){
+  // production from buildings
+  let foodGain=0, silverGain=0, infGain=0;
+  for(const r of ownedRegions(G,p)){
+    const st = G.regionState[r.key];
+    for(const b of st.buildings){
+      foodGain += BUILDINGS[b].food;
+      silverGain += BUILDINGS[b].silver;
+      infGain += BUILDINGS[b].inf;
     }
+  }
+  // capital always gives +1 food and +1 silver
+  const cap = capitalOf(p.kingdom);
+  if(G.regionState[cap]){
+    foodGain += 1;
+    silverGain += 1;
+  }
+  p.food += foodGain;
+  p.silver += silverGain;
+  p.inf += infGain;
 
-    const occupiers = Object.entries(rs.armies)
-      .filter(([pid,u]) => Number(u) > 0 && game.players[Number(pid)]?.alive)
-      .map(([pid]) => Number(pid));
+  // upkeep: 1 food per active unit
+  const active = G.armies.filter(a=>a.playerId===p.id).reduce((s,a)=>s+a.units,0);
+  p.food -= active;
 
-    if (occupiers.length === 1){
-      const occ = occupiers[0];
-      if (rs.occupation.sole === occ) rs.occupation.timer += 1;
-      else { rs.occupation.sole = occ; rs.occupation.timer = 1; }
+  let needsHumanDisband = 0;
+  if(p.food < 0){
+    const deficit = -p.food;
+    // must disband 'deficit' units
+    if(isHuman(p)){
+      needsHumanDisband = deficit;
+      p.food = 0; // temporarily clamp; disband will effectively satisfy
+    } else {
+      // AI auto disband from smallest/most distant
+      disbandUnitsAI(p, deficit);
+      p.food = 0;
+    }
+  }
 
-      if (rs.owner !== occ){
-        const needed = rs.meta.capital ? CAPITAL_CAPTURE_ROUNDS : REGION_CONTROL_ROUNDS;
-        if (rs.occupation.timer >= needed){
-          if (rs.meta.capital && rs.owner !== null){
-            const loser = rs.owner;
-            log(`👑 CAPITAL CAPTURE! ${game.players[occ].name} takes ${rs.name}. ${game.players[loser].name} is eliminated.`);
-            eliminatePlayer(loser);
-          }
-          rs.owner = occ;
-          log(`${game.players[occ].name} takes control of ${rs.name}.`);
+  return {
+    summary:`+${foodGain}🍞 +${silverGain}💰 +${infGain}👑, upkeep -${active}🍞` + (needsHumanDisband?` • Need to disband ${needsHumanDisband} unit(s)`:""),
+    needsHumanDisband
+  };
+}
+
+function disbandUnitsAI(p, count){
+  let left=count;
+  // disband from smallest armies first
+  const armies = G.armies.filter(a=>a.playerId===p.id).sort((a,b)=>a.units-b.units);
+  for(const a of armies){
+    if(left<=0) break;
+    const take = Math.min(left, a.units);
+    a.units -= take;
+    left -= take;
+    if(a.units<=0) removeArmy(G,a.id);
+  }
+  logEntry(p.kingdom, "Forced disband", `Disbanded ${count-left} unit(s) due to lack of food.`);
+}
+
+function promptHumanDisband(count){
+  const body = document.createElement("div");
+  body.innerHTML = `<p>You don’t have enough Food to pay upkeep. You must disband <b>${count}</b> unit(s).</p>
+  <p>Pick armies to disband from:</p>`;
+  const list = document.createElement("div");
+  list.style.display="flex";
+  list.style.flexDirection="column";
+  list.style.gap="8px";
+
+  const my = G.armies.filter(a=>a.playerId===humanPlayer().id);
+  if(my.length===0){
+    // nothing to disband
+    closeModal();
+    return;
+  }
+
+  let left=count;
+
+  const refreshButtons=()=>{
+    list.innerHTML="";
+    for(const a of my){
+      if(!G.armies.find(x=>x.id===a.id)) continue;
+      const btn = document.createElement("button");
+      btn.className="btn";
+      btn.textContent = `${labelOf(a.regionKey)} — ${a.units} unit(s)`;
+      btn.onclick=()=>{
+        if(left<=0) return;
+        const take=1;
+        a.units -= take;
+        left -= take;
+        if(a.units<=0) removeArmy(G,a.id);
+        $("#modalBody").querySelector("b").textContent = left;
+        refreshButtons();
+        renderUI();
+        if(left<=0){
+          closeModal();
+          // continue turn (human's turn)
+          logEntry("System","Upkeep resolved","You may now take your 2 actions.");
+          renderUI();
+        }
+      };
+      list.appendChild(btn);
+    }
+  };
+
+  refreshButtons();
+  body.appendChild(list);
+
+  openModal("Upkeep — Disband required", body, [
+    {text:"Cancel", kind:"ghost", onClick:()=>{}}
+  ], false);
+}
+
+function handlePendingPrompt(){
+  const pr = G.pendingPrompt;
+  if(!pr) return;
+  const p = playerById(pr.playerId);
+  if(pr.type==="revolt"){
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<p><b>Major Revolt</b>: pay 2 Silver to stop it, or lose control of a region.</p>
+                      <p>You have 💰 ${p.silver}.</p>`;
+    const footBtns = [];
+    footBtns.push({text:"Pay 2 Silver", kind:"primary", onClick:()=>{
+      p.silver -= 2;
+      G.pendingPrompt=null;
+      closeModal();
+      logEntry(p.kingdom, "Major Revolt", "Paid 2 Silver.");
+      beginTurn(); // resume
+    }});
+    footBtns.push({text:"Let it revolt", kind:"danger", onClick:()=>{
+      const loseKey = pick(pr.regions);
+      G.regionState[loseKey].owner = null;
+      G.pendingPrompt=null;
+      closeModal();
+      logEntry(p.kingdom, "Major Revolt", `Lost control of ${labelOf(loseKey)}.`);
+      beginTurn();
+    }});
+    openModal("Choice", wrap, footBtns, false);
+  }
+}
+
+/** ---------- Human action handlers ---------- **/
+function doMove(){
+  const p=currentPlayer();
+  const a = G.armies.find(x=>x.id===G.selected.armyId);
+  if(!a) return;
+  const opts = neighbors(a.regionKey).filter(n=>n.cost<=G.ap);
+  if(opts.length===0) return;
+
+  openSheet("Move", renderChoiceList(opts.map(o=>({
+      title: `${labelOf(o.key)}`,
+      subtitle: `Cost ${o.cost} AP`,
+      onClick: ()=>{
+        moveArmy(p,a,o.key,o.cost);
+        closeSheet();
+        afterAction();
+      }
+    })), []
+  );
+}
+
+function moveArmy(p, army, toKey, cost){
+  G.ap -= cost;
+  const from = army.regionKey;
+  army.regionKey = toKey;
+  logEntry(p.kingdom, "Move", `${labelOf(from)} → ${labelOf(toKey)} (−${cost} AP)`);
+
+  // entering a region: set contest if not owned by you, unless transit-only
+  if(!isTransitOnly(toKey)){
+    const st = G.regionState[toKey];
+    const enemies = enemyArmiesInRegion(p,toKey);
+    if(enemies.length>0){
+      // contested by presence
+      st.contest = {occupierPlayerId:p.id, turnsHeld:0};
+    } else if(st.owner !== p.id){
+      st.contest = {occupierPlayerId:p.id, turnsHeld:0};
+    }
+  }
+}
+
+function doAttack(){
+  const p=currentPlayer();
+  const key = G.selected.regionKey;
+  const enemies = enemyArmiesInRegion(p,key);
+  const friends = friendlyArmiesInRegion(p,key);
+  if(enemies.length===0 || friends.length===0) return;
+
+  // choose which friendly army attacks and which enemy defends (if multiple)
+  const f = friends[0];
+  const e = enemies[0];
+
+  openSheet("Attack", (()=>{
+    const d=document.createElement("div");
+    d.innerHTML = `
+      <p><b>${labelOf(key)}</b></p>
+      <p>Attacker: ${p.kingdom} (${f.units})</p>
+      <p>Defender: ${playerById(e.playerId).kingdom} (${e.units})</p>
+      <p>Choose your stance:</p>
+    `;
+    const stanceRow=document.createElement("div");
+    stanceRow.style.display="grid";
+    stanceRow.style.gridTemplateColumns="1fr 1fr 1fr";
+    stanceRow.style.gap="10px";
+
+    const stances=[
+      {id:"O", label:"Offensive ⚔️"},
+      {id:"B", label:"Balanced ⚖️"},
+      {id:"D", label:"Defensive 🛡️"},
+    ];
+    for(const s of stances){
+      const btn=document.createElement("button");
+      btn.className="btn";
+      btn.textContent=s.label;
+      btn.onclick=()=>{
+        const result = resolveCombat({attacker:f, defender:e, regionKey:key, attackerStance:s.id, defenderStance:aiChooseStance()});
+        G.ap -= 1;
+        logEntry(p.kingdom, "Attack", result.summary);
+        closeSheet();
+        afterAction();
+      };
+      stanceRow.appendChild(btn);
+    }
+    d.appendChild(stanceRow);
+    return d;
+  })(), []);
+}
+
+function aiChooseStance(){
+  return pick(["O","B","D"]);
+}
+
+function resolveCombat({attacker, defender, regionKey, attackerStance, defenderStance}){
+  // skirmish if either exactly 1
+  if(attacker.units===1 || defender.units===1){
+    const roll = 1 + rnd(6);
+    let out="";
+    if(roll<=2){
+      // defender wins
+      attacker.units -= 1;
+      if(attacker.units<=0) removeArmy(G, attacker.id);
+      out = `Skirmish (d6=${roll}): Defender holds. Attacker loses 1.`;
+    } else if(roll===3){
+      attacker.units -= 1; defender.units -= 1;
+      if(attacker.units<=0) removeArmy(G, attacker.id);
+      if(defender.units<=0) removeArmy(G, defender.id);
+      out = `Skirmish (d6=${roll}): Stalemate. Both lose 1.`;
+    } else {
+      defender.units -= 1;
+      if(defender.units<=0) removeArmy(G, defender.id);
+      out = `Skirmish (d6=${roll}): Attacker wins. Defender loses 1.`;
+    }
+    return {summary: out};
+  }
+
+  // stance RPS => winner gets +1 defense
+  const rps = (a,b)=>{
+    if(a===b) return 0;
+    if(a==="O" && b==="B") return 1;
+    if(a==="B" && b==="D") return 1;
+    if(a==="D" && b==="O") return 1;
+    return -1;
+  };
+  const stanceRes = rps(attackerStance, defenderStance);
+  let stanceDefBonus = 0;
+  let stanceNote = "Stances tied.";
+  if(stanceRes===1){ stanceDefBonus = 0; stanceNote="Attacker won stance (+1 def to attacker per rules is ambiguous; using +1 defense to winner side)."; }
+  if(stanceRes===-1){ stanceDefBonus = 1; stanceNote="Defender won stance (+1 defense)."; }
+
+  // region defense
+  const terrain = MAP.regions[regionKey]?.terrain || "plains";
+  let def = TERRAIN_DEF[terrain] || 0;
+  const st = G.regionState[regionKey];
+  const hasCastle = st.buildings.includes("castle");
+  if(hasCastle) def += 2;
+  if(isCapital(regionKey)) def += 1;
+  def += stanceDefBonus;
+
+  // defense die mapping
+  const roll = 1 + rnd(6);
+  const dieMod = ({1:2,2:1,3:0,4:0,5:-1,6:-2})[roll];
+  def = Math.max(0, def + dieMod);
+
+  // convert defense to strength bonus
+  let defStr=0;
+  if(def>=2 && def<=3) defStr=1;
+  else if(def>=4 && def<=5) defStr=2;
+  else if(def>=6) defStr=3;
+
+  const atk = attacker.units;
+  const dfn = defender.units + defStr;
+  const diff = Math.abs(atk-dfn);
+
+  const winner = atk>=dfn ? "attacker":"defender";
+  let summary = `Battle: A${atk} vs D${defender.units} (def ${def}=>+${defStr}, d6=${roll}). `;
+  if(diff<=1){
+    attacker.units -=1; defender.units -=1;
+    summary += "Stalemate: both lose 1.";
+  } else if(diff<=3){
+    if(winner==="attacker"){
+      defender.units -=1;
+      summary += "Minor win: defender loses 1 and retreats 1.";
+      retreat(defender, 1);
+    } else {
+      attacker.units -=1;
+      summary += "Minor win: attacker loses 1 and retreats 1.";
+      retreat(attacker, 1);
+    }
+  } else if(diff<=5){
+    if(winner==="attacker"){
+      defender.units -=2;
+      summary += "Clear win: defender loses 2 and retreats 2.";
+      retreat(defender, 2);
+    } else {
+      attacker.units -=2;
+      summary += "Clear win: attacker loses 2 and retreats 2.";
+      retreat(attacker, 2);
+    }
+  } else {
+    if(winner==="attacker"){
+      defender.units -=3;
+      summary += "Crushing victory: defender loses 3; survivors disband.";
+      defender.units = 0;
+    } else {
+      attacker.units -=3;
+      summary += "Crushing victory: attacker loses 3; survivors disband.";
+      attacker.units = 0;
+    }
+  }
+
+  if(attacker.units<=0) removeArmy(G, attacker.id);
+  if(defender.units<=0) removeArmy(G, defender.id);
+
+  // contested state update
+  const occ = G.regionState[regionKey];
+  if(occ){
+    const atkP = playerById(attacker.playerId);
+    if(atkP){
+      occ.contest = {occupierPlayerId: atkP.id, turnsHeld:0};
+    }
+  }
+  return {summary};
+}
+
+function retreat(army, steps){
+  // crude retreat: move toward army's capital using BFS shortest path (by edges count)
+  const cap = capitalOf(playerById(army.playerId).kingdom);
+  let cur = army.regionKey;
+  for(let s=0;s<steps;s++){
+    const next = stepToward(cur, cap);
+    if(!next) break;
+    cur = next;
+  }
+  army.regionKey = cur;
+}
+
+function stepToward(from, target){
+  // BFS to find first step
+  const q=[from];
+  const prev = new Map();
+  prev.set(from,null);
+  while(q.length){
+    const x=q.shift();
+    if(x===target) break;
+    for(const n of neighbors(x)){
+      if(!prev.has(n.key)){
+        prev.set(n.key, x);
+        q.push(n.key);
+      }
+    }
+  }
+  if(!prev.has(target)) return null;
+  // backtrack from target to from
+  let cur=target, p=prev.get(cur);
+  while(p && p!==from){
+    cur=p; p=prev.get(cur);
+  }
+  return cur===from ? null : cur;
+}
+
+function doRecruit(){
+  const p=currentPlayer();
+  const key = G.selected.regionKey;
+  const st = G.regionState[key];
+  p.silver -= 1;
+  st.reserve += 1;
+  G.ap -= 1;
+  logEntry(p.kingdom, "Recruit", `+1 levy into ${labelOf(key)} reserve (−1💰, −1 AP)`);
+  afterAction();
+}
+
+function doCallup(){
+  const p=currentPlayer();
+  const cap = capitalOf(p.kingdom);
+  const regs = ownedRegions(G,p).filter(r=>G.regionState[r.key].reserve>0);
+  const total = regs.reduce((s,r)=>s+G.regionState[r.key].reserve,0);
+
+  openSheet("Call up to capital", (()=>{
+    const d=document.createElement("div");
+    d.innerHTML = `<p>Call up levies to <b>${labelOf(cap)}</b> (your capital). You have ${total} stored.</p>
+                   <p>1–2 units costs 1 AP. 3+ units costs 2 AP.</p>`;
+    const input=document.createElement("input");
+    input.type="number";
+    input.min="1";
+    input.max=String(total);
+    input.value=String(Math.min(2,total));
+    input.style.marginTop="10px";
+    d.appendChild(input);
+
+    const byRegion=document.createElement("div");
+    byRegion.style.marginTop="10px";
+    byRegion.style.color="rgba(255,255,255,.88)";
+    byRegion.innerHTML = regs.map(r=>`${labelOf(r.key)}: ${G.regionState[r.key].reserve}`).join("<br>");
+    d.appendChild(byRegion);
+
+    const foot=document.createElement("div");
+    foot.style.marginTop="12px";
+    const btn=document.createElement("button");
+    btn.className="btn primary";
+    btn.textContent="Call up";
+    btn.onclick=()=>{
+      const n=clamp(parseInt(input.value,10)||1,1,total);
+      const apCost = n<=2 ? 1 : 2;
+      if(G.ap < apCost){ alert("Not enough AP."); return; }
+      // remove from reserves (simple: drain from farthest? just in listed order)
+      let left=n;
+      for(const r of regs){
+        if(left<=0) break;
+        const take=Math.min(left, G.regionState[r.key].reserve);
+        G.regionState[r.key].reserve -= take;
+        left -= take;
+      }
+      addOrReinforceArmy(p.id, cap, n);
+      G.ap -= apCost;
+      logEntry(p.kingdom,"Call up", `${n} unit(s) to ${labelOf(cap)} (−${apCost} AP)`);
+      closeSheet();
+      afterAction();
+    };
+    return d;
+  })(), []);
+}
+
+function addOrReinforceArmy(playerId, regionKey, units){
+  const existing = G.armies.find(a=>a.playerId===playerId && a.regionKey===regionKey);
+  if(existing) existing.units += units;
+  else G.armies.push({id:uid(), playerId, regionKey, units});
+}
+
+function doBuild(){
+  const p=currentPlayer();
+  const key=G.selected.regionKey;
+  const st=G.regionState[key];
+
+  const choices = Object.entries(BUILDINGS).map(([id,b])=>({
+    id,
+    title: `${b.icon} ${b.name}`,
+    subtitle: `Cost ${b.cost} Silver` + (id==="castle"?" • +2 defense":""),
+    disabled: p.silver < b.cost || (id==="castle" && isTransitOnly(key)),
+    onClick: ()=>{
+      if(p.silver < b.cost) return;
+      p.silver -= b.cost;
+      st.buildings.push(id);
+      G.ap -= 1;
+      logEntry(p.kingdom, "Build", `${b.name} in ${labelOf(key)} (−${b.cost}💰, −1 AP)`);
+      closeSheet();
+      afterAction();
+    }
+  }));
+
+  openSheet("Build", renderChoiceList(choices), []);
+}
+
+function doPillage(){
+  const p=currentPlayer();
+  const key=G.selected.regionKey;
+  const st=G.regionState[key];
+
+  // pillage removes one pillageable building if possible
+  const pill = st.buildings.filter(b=>BUILDINGS[b].pillageable);
+  if(pill.length===0){ alert("No pillageable buildings here."); return; }
+  const target = pick(pill);
+  st.buildings.splice(st.buildings.indexOf(target),1);
+  p.silver += 1;
+  G.ap -= 1;
+  logEntry(p.kingdom,"Pillage",`Destroyed ${BUILDINGS[target].name} in ${labelOf(key)} (+1💰, −1 AP)`);
+  afterAction();
+}
+
+function doDisband(){
+  const p=currentPlayer();
+  const a = G.armies.find(x=>x.id===G.selected.armyId);
+  if(!a) return;
+  a.units -= 1;
+  G.ap -= 1;
+  if(a.units<=0) removeArmy(G,a.id);
+  logEntry(p.kingdom,"Disband",`Disbanded 1 unit in ${labelOf(a.regionKey)} (−1 AP)`);
+  afterAction();
+}
+
+function afterAction(){
+  resolveControlProgress();
+  checkVictory();
+  renderUI();
+}
+
+function resolveControlProgress(){
+  // for each region with contest, increment if occupier still present and no enemies
+  for(const [key, st] of Object.entries(G.regionState)){
+    if(!st.contest) continue;
+    if(isTransitOnly(key)){ st.contest=null; continue; }
+    const occ = st.contest.occupierPlayerId;
+    const occPlayer = playerById(occ);
+    if(!occPlayer){ st.contest=null; continue; }
+    const occArmies = G.armies.filter(a=>a.regionKey===key && a.playerId===occ);
+    const enemies = G.armies.filter(a=>a.regionKey===key && a.playerId!==occ);
+    if(occArmies.length===0){ st.contest=null; continue; }
+    if(enemies.length>0){ st.contest.turnsHeld=0; continue; }
+    st.contest.turnsHeld += 1;
+    const need = isCapital(key) ? 2 : 1;
+    if(st.contest.turnsHeld >= need){
+      // capture control, unless transit
+      st.owner = occ;
+      st.contest = null;
+      logEntry(occPlayer.kingdom, "Captured", `${labelOf(key)} is now controlled.`);
+      if(isCapital(key)){
+        // eliminate previous owner
+        const prevOwner = G.players.find(p=>p.id!==occ && p.kingdom===MAP.regions[key].kingdom);
+        // actually capital belongs to kingdom; find player owning that kingdom
+        const capitalKingdom = MAP.regions[key].kingdom;
+        const loser = G.players.find(p=>p.kingdom===capitalKingdom && p.id!==occ);
+        if(loser && !loser.eliminated){
+          loser.eliminated=true;
+          logEntry("System","Kingdom defeated", `${loser.kingdom} has lost its capital and is eliminated.`);
         }
       }
-    } else {
-      rs.occupation.sole = null;
-      rs.occupation.timer = 0;
     }
-  }
-}
-
-function eliminatePlayer(pid){
-  const pl = game.players[pid];
-  if (!pl) return;
-  pl.alive = false;
-  for (const rs of Object.values(game.regions)){
-    delete rs.armies[pid];
-    if (rs.owner === pid) rs.owner = null;
   }
 }
 
 function checkVictory(){
-  for (const pl of game.players){
-    if (!pl.alive) continue;
-
-    if (pl.influence >= HIGH_KING_INFLUENCE) return pl.id;
-
-    const owned = controlledRegions(pl.id).map(r=>r.name);
-    const hasHistoric = pl.historic.every(r => owned.includes(r));
-    if (!hasHistoric) continue;
-
-    const extraNeeded = TERRITORY_EXTRA_BY_PLAYERS[game.players.length] ?? 3;
-    const extraOwned = owned.filter(r => !pl.historic.includes(r) && !game.regions[r].meta.transitOnly).length;
-    if (extraOwned >= extraNeeded) return pl.id;
-  }
-  return null;
-}
-
-
-function startTurnFor(pid){
-  // mark start for turn summary
-  game._turnStartLog = game.log.length;
-
-  // auto event + income for everyone
-  const pl = game.players[pid];
-  log(`\n▶ Turn: ${pl.name} — Round ${game.round} (AP ${game.ap})`);
-}
-
-
-/* --- Shared turn steps --- */
-
-function resolveEventFor(pid){
-  const pl = game.players[pid];
-  if (!pl.alive) return;
-  if (game.round === 1){
-    log(`${pl.name}: Event skipped in Round 1.`);
-    game.didEventThisTurn[pid] = true;
+  // if human eliminated -> game over
+  const human = humanPlayer();
+  if(human.eliminated){
+    openModal("Defeat", document.createTextNode("You lost your capital. Game over."), [
+      {text:"New Game", kind:"primary", onClick:()=>{ closeModal(); resetToSetup(); }}
+    ], true);
     return;
   }
-  if (game.didEventThisTurn[pid]) return;
 
-  const card = weightedPick(EVENTS);
-  log(`${pl.name} draws event: ${card}`);
+  const alive = G.players.filter(p=>!p.eliminated);
+  if(alive.length===1){
+    const w = alive[0];
+    openModal("Victory", document.createTextNode(`${w.kingdom} wins (last kingdom standing).`), [
+      {text:"New Game", kind:"primary", onClick:()=>{ closeModal(); resetToSetup(); }}
+    ], true);
+    return;
+  }
 
-  if (card === "Poor Harvest") pl.food = Math.max(0, pl.food - 1);
-  else if (card === "Banditry") pl.silver = Math.max(0, pl.silver - 1);
-  else if (card === "Local Unrest"){
-    const regs = controlledRegions(pid).filter(r => r.stored > 0 && !r.meta.transitOnly);
-    if (regs.length){
-      regs.sort((a,b)=>b.stored-a.stored);
-      regs[0].stored = Math.max(0, regs[0].stored - 1);
-      log(`${pl.name} loses 1 stored levy from ${regs[0].name}.`);
-    } else log("No stored levies to lose.");
-  }
-  else if (card === "Good Harvest") pl.food += 1;
-  else if (card === "Trade Boom") pl.silver += 1;
-  else if (card === "Skilled Craftsmen"){
-    game.buildDiscount[pid] = 1;
-    log(`${pl.name}: Next build cost -1 Silver (this turn).`);
-  }
-  else if (card === "Noble Retinue Donated"){
-    const regs = controlledRegions(pid).filter(r=>!r.meta.transitOnly);
-    if (regs.length){
-      regs.sort((a,b)=>a.stored-b.stored);
-      const r = regs[0];
-      r.stored = Math.min(r.meta.levyCap, r.stored + 2);
-      log(`${pl.name} gains +2 stored levies in ${r.name}.`);
+  const influenceTarget = (G.players.length<=3) ? 18 : 24;
+  const extraNeeded = (G.players.length<=3) ? 2 : 4;
+
+  for(const p of alive){
+    if(p.inf >= influenceTarget){
+      openModal("Victory", document.createTextNode(`${p.kingdom} wins by Influence (👑 ${p.inf}/${influenceTarget}).`), [
+        {text:"New Game", kind:"primary", onClick:()=>{ closeModal(); resetToSetup(); }}
+      ], true);
+      return;
     }
-  }
-  else if (card === "Royal Favour") pl.influence += 2;
-  else if (card === "Bountiful Year"){ pl.food += 2; pl.silver += 1; }
-  else if (card === "Major Revolt"){
-    if (pl.silver >= 2){ pl.silver -= 2; log(`${pl.name} pays 2 Silver to prevent revolt.`); }
-    else {
-      const owned = controlledRegions(pid).filter(r => !r.meta.capital && !r.meta.transitOnly);
-      if (owned.length){
-        const lose = owned[owned.length-1];
-        lose.owner = null;
-        log(`${pl.name} loses control of ${lose.name}.`);
+    const core = KINGDOMS.find(k=>k.name===p.kingdom).core;
+    const owned = ownedRegions(G,p).map(r=>r.key);
+    const hasCore = core.every(k=>owned.includes(k));
+    if(hasCore){
+      const extra = owned.filter(k=>!core.includes(k) && !isTransitOnly(k)).length;
+      if(extra >= extraNeeded){
+        openModal("Victory", document.createTextNode(`${p.kingdom} wins by Dominion (core + ${extra} extra).`), [
+          {text:"New Game", kind:"primary", onClick:()=>{ closeModal(); resetToSetup(); }}
+        ], true);
+        return;
       }
     }
   }
-  else if (card === "Plague"){
-    const active = countActiveUnits(pid);
-    const regs = controlledRegions(pid).filter(r=>r.stored>0);
-    if (active > 0){
-      disbandOneActive(pid);
-    } else if (regs.length){
-      regs[0].stored -= 1;
-      log(`${pl.name} discards 1 stored levy from ${regs[0].name}.`);
-    }
-  }
-  else if (card === "Treasury Crisis") pl.silver = Math.max(0, pl.silver - 2);
-
-  game.didEventThisTurn[pid] = true;
 }
 
-function incomeAndUpkeepFor(pid){
-  const pl = game.players[pid];
-  if (!pl.alive) return;
-  if (game.didIncomeThisTurn[pid]) return;
+/** ---------- Turn end & AI ---------- **/
+function endTurn(){
+  // only human ends human turn
+  const p=currentPlayer();
+  if(!isHuman(p)) return;
 
-  let foodGain = 0, silverGain = 0, inflGain = 0;
-  for (const rs of controlledRegions(pid)){
-    foodGain += rs.buildings.Farm;
-    silverGain += rs.buildings.Market;
-    inflGain += rs.buildings.Hall;
+  // advance turn
+  advanceTurn();
+  beginTurn();
+  renderUI();
+}
+
+function advanceTurn(){
+  // end of a player's turn increments contest timers already in afterAction; we also resolve once more at end of turn
+  resolveControlProgress();
+
+  // move to next non-eliminated player
+  let tries=0;
+  do{
+    G.turnIndex = (G.turnIndex + 1) % G.turnOrder.length;
+    tries++;
+    if(tries>10) break;
+  } while(playerById(G.turnOrder[G.turnIndex])?.eliminated);
+
+  // if wrapped to start, round++
+  if(G.turnIndex===0){
+    G.round += 1;
   }
-  foodGain += CAPITAL_BASE.food;
-  silverGain += CAPITAL_BASE.silver;
+}
 
-  pl.food += foodGain;
-  pl.silver += silverGain;
-  pl.influence += inflGain;
+function runAIturn(p){
+  const actions=[];
+  // simple AI: prioritize capturing adjacent uncontrolled/enemy regions, then attack if in contested, then build farms if food low, then recruit
+  // Determine AI armies; if none, call up if possible
+  const cap = capitalOf(p.kingdom);
 
-  const upkeep = countActiveUnits(pid);
-  if (upkeep > 0){
-    if (pl.food >= upkeep) pl.food -= upkeep;
-    else {
-      let deficit = upkeep - pl.food;
-      pl.food = 0;
-      log(`${pl.name} cannot pay upkeep by ${deficit}. Disbanding...`);
-      while (deficit > 0 && countActiveUnits(pid) > 0){
-        disbandOneActive(pid);
-        deficit -= 1;
+  const totalReserve = ownedRegions(G,p).reduce((s,r)=>s+G.regionState[r.key].reserve,0);
+  const activeUnits = G.armies.filter(a=>a.playerId===p.id).reduce((s,a)=>s+a.units,0);
+
+  const wantMoreUnits = totalReserve>0 && activeUnits<4 && p.food>=2;
+  if(wantMoreUnits && G.ap>0){
+    const n = Math.min(2, totalReserve);
+    const apCost = n<=2 ? 1 : 2;
+    if(G.ap>=apCost){
+      // drain reserves
+      let left=n;
+      const regs = ownedRegions(G,p).filter(r=>G.regionState[r.key].reserve>0);
+      for(const r of regs){
+        if(left<=0) break;
+        const take=Math.min(left, G.regionState[r.key].reserve);
+        G.regionState[r.key].reserve -= take;
+        left -= take;
+      }
+      addOrReinforceArmy(p.id, cap, n);
+      G.ap -= apCost;
+      actions.push(`Call up ${n} to ${labelOf(cap)} (AP ${apCost})`);
+    }
+  }
+
+  // if no armies even now, recruit
+  if(G.armies.filter(a=>a.playerId===p.id).length===0 && p.silver>=1 && G.ap>=1){
+    const regs = ownedRegions(G,p).filter(r=>!isTransitOnly(r.key));
+    const r = pick(regs);
+    const st=G.regionState[r.key];
+    const max=isCapital(r.key)?3:2;
+    if(st.reserve<max){
+      st.reserve += 1;
+      p.silver -= 1;
+      G.ap -= 1;
+      actions.push(`Recruit in ${labelOf(r.key)}`);
+    }
+  }
+
+  // move/attack loop
+  while(G.ap>0){
+    // choose an army
+    const myArmies = G.armies.filter(a=>a.playerId===p.id);
+    if(myArmies.length===0) break;
+    // prefer largest army
+    myArmies.sort((a,b)=>b.units-a.units);
+    const a = myArmies[0];
+
+    // if enemy in region and have AP for attack
+    const enemies = enemyArmiesInRegion(p, a.regionKey);
+    if(enemies.length>0 && G.ap>=1){
+      const e = enemies.sort((x,y)=>y.units-x.units)[0];
+      const res = resolveCombat({attacker:a, defender:e, regionKey:a.regionKey, attackerStance:aiChooseStance(), defenderStance:aiChooseStance()});
+      G.ap -= 1;
+      actions.push(`Attack in ${labelOf(a.regionKey)} • ${res.summary}`);
+      continue;
+    }
+
+    // find best neighbor to move to: prioritize capturing core regions, then any uncontrolled, then enemy owned (for contest)
+    const neigh = neighbors(a.regionKey).filter(n=>n.cost<=G.ap && !isTransitOnly(n.key));
+    if(neigh.length===0) break;
+
+    const core = KINGDOMS.find(k=>k.name===p.kingdom).core;
+    neigh.sort((n1,n2)=>{
+      const s=(n)=>{
+        const st=G.regionState[n.key];
+        let score=0;
+        if(core.includes(n.key)) score+=6;
+        if(st.owner===null) score+=4;
+        if(st.owner && st.owner!==p.id) score+=3;
+        // avoid moving into big enemy stack if small
+        const enemies = G.armies.filter(x=>x.regionKey===n.key && x.playerId!==p.id).reduce((s,a)=>s+a.units,0);
+        score -= Math.max(0,enemies - a.units);
+        // prefer cheaper
+        score += (2-n.cost);
+        return score;
+      };
+      return s(n2)-s(n1);
+    });
+
+    const target = neigh[0];
+    const from=a.regionKey;
+    moveArmy(p,a,target.key,target.cost);
+    actions.push(`Move ${labelOf(from)}→${labelOf(target.key)} (AP ${target.cost})`);
+  }
+
+  // build if can and economy needs: low food -> farm, else market, else hall
+  const buildIf = (type)=>{
+    const owned = ownedRegions(G,p).filter(r=>!isTransitOnly(r.key));
+    if(owned.length===0) return false;
+    const r = pick(owned);
+    const st = G.regionState[r.key];
+    const max=isCapital(r.key)?3:2;
+    if(st.buildings.length>=max) return false;
+    const b=BUILDINGS[type];
+    if(p.silver < b.cost || G.ap<1) return false;
+    p.silver -= b.cost;
+    st.buildings.push(type);
+    G.ap -= 1;
+    actions.push(`Build ${b.name} in ${labelOf(r.key)}`);
+    return true;
+  };
+
+  if(G.ap>0){
+    if(p.food<=1) buildIf("farm");
+    else if(p.silver>=2) buildIf("market");
+    else buildIf("hall");
+  }
+
+  // recruitment if AP left
+  if(G.ap>0 && p.silver>=1){
+    const owned = ownedRegions(G,p).filter(r=>!isTransitOnly(r.key));
+    owned.sort((a,b)=>G.regionState[a.key].reserve - G.regionState[b.key].reserve);
+    for(const r of owned){
+      const st=G.regionState[r.key];
+      const max=isCapital(r.key)?3:2;
+      if(st.reserve<max){
+        st.reserve += 1;
+        p.silver -= 1;
+        G.ap -= 1;
+        actions.push(`Recruit in ${labelOf(r.key)}`);
+        break;
       }
     }
   }
-  log(`${pl.name} income: +${foodGain}F +${silverGain}S +${inflGain}I | upkeep ${upkeep} | now F${pl.food} S${pl.silver} I${pl.influence}`);
-  game.didIncomeThisTurn[pid] = true;
+
+  G.aiTurnSummary = `${p.kingdom}: ` + (actions.length?actions.slice(0,6).join("\n"):"No actions.");
+  logEntry(p.kingdom, "AI turn", actions.length ? actions[0] : "No actions");
+  // End AI turn automatically
+  advanceTurn();
+  beginTurn();
 }
 
-function disbandOneActive(pid){
-  for (const rs of Object.values(game.regions)){
-    const u = Number(rs.armies[pid] || 0);
-    if (u > 0){
-      rs.armies[pid] = u - 1;
-      log(`${game.players[pid].name} disbands 1 active unit from ${rs.name}.`);
-      return true;
-    }
+/** ---------- Sheets & modals ---------- **/
+function openSheet(title, bodyNode, footButtons){
+  $("#sheetTitle").textContent=title;
+  const b=$("#sheetBody"); b.innerHTML=""; b.appendChild(bodyNode);
+  const f=$("#sheetFoot"); f.innerHTML="";
+  for(const btn of (footButtons||[])){
+    const el=document.createElement("button");
+    el.className="btn " + (btn.kind||"");
+    el.textContent=btn.text;
+    el.onclick=btn.onClick;
+    f.appendChild(el);
   }
-  return false;
+  $("#sheet").classList.remove("hidden");
 }
+function closeSheet(){ $("#sheet").classList.add("hidden"); }
 
-/* --- Combat --- */
-
-function stanceWinner(att, def){
-  if (att === def) return null;
-  const beats = { Offensive:"Defensive", Defensive:"Balanced", Balanced:"Offensive" };
-  return (beats[att] === def) ? "attacker" : "defender";
-}
-function normalizeStance(s){
-  const t = (s||"").toLowerCase();
-  if (t.startsWith("off")) return "Offensive";
-  if (t.startsWith("def")) return "Defensive";
-  return "Balanced";
-}
-function hasEnemyIn(rs, pid){
-  return Object.entries(rs.armies).some(([other,u]) => Number(other)!==pid && Number(u)>0 && game.players[Number(other)]?.alive);
-}
-
-function resolveCombat(attId, defId, rs, aiAuto=false){
-  const attName = game.players[attId].name;
-  const defName = game.players[defId].name;
-
-  const atkUnits = Number(rs.armies[attId]||0);
-  const defUnits = Number(rs.armies[defId]||0);
-  if (atkUnits<=0 || defUnits<=0) return;
-
-  log(`⚔️ Combat at ${rs.name}: ${attName}(${atkUnits}) vs ${defName}(${defUnits})`);
-
-  if (atkUnits === 1 || defUnits === 1){
-    const roll = d6();
-    log(`Skirmish roll: ${roll}`);
-    if (roll <= 2){
-      rs.armies[attId] = Math.max(0, atkUnits - 1);
-      log(`Defender holds. ${attName} loses 1.`);
-    } else if (roll === 3){
-      rs.armies[attId] = Math.max(0, atkUnits - 1);
-      rs.armies[defId] = Math.max(0, defUnits - 1);
-      log(`Stalemate. Both lose 1.`);
-    } else {
-      rs.armies[defId] = Math.max(0, defUnits - 1);
-      log(`Attacker succeeds. ${defName} loses 1.`);
-    }
-    return;
+function openModal(title, bodyNode, buttons, closable=true){
+  $("#modalTitle").textContent=title;
+  const b=$("#modalBody"); b.innerHTML="";
+  if(typeof bodyNode==="string") b.textContent=bodyNode;
+  else b.appendChild(bodyNode);
+  const f=$("#modalFoot"); f.innerHTML="";
+  for(const btn of (buttons||[])){
+    const el=document.createElement("button");
+    el.className="btn " + (btn.kind||"");
+    el.textContent=btn.text;
+    el.onclick=btn.onClick;
+    f.appendChild(el);
   }
-
-  const attStance = aiAuto ? (atkUnits > defUnits ? "Offensive" : "Balanced")
-                          : normalizeStance(prompt(`Stance for ${attName} (Offensive/Balanced/Defensive):`, "Balanced") || "Balanced");
-  const defStance = aiAuto ? (defUnits >= atkUnits ? "Defensive" : "Balanced")
-                          : normalizeStance(prompt(`Stance for ${defName} (Offensive/Balanced/Defensive):`, "Defensive") || "Defensive");
-
-  const win = stanceWinner(attStance, defStance);
-  const stanceDefBonus = (win === "defender") ? 1 : 0;
-
-  let defence = 0;
-  defence += rs.meta.terrainDef;
-  defence += 2 * Number(rs.buildings.Castle || 0);
-  if (rs.meta.capital) defence += 1;
-  defence += stanceDefBonus;
-
-  const roll = d6();
-  let mod = 0;
-  if (roll === 1) mod = 2;
-  else if (roll === 2) mod = 1;
-  else if (roll === 5) mod = -1;
-  else if (roll === 6) mod = -2;
-  defence = Math.max(0, defence + mod);
-
-  let added = 0;
-  if (defence <= 1) added = 0;
-  else if (defence <= 3) added = 1;
-  else if (defence <= 5) added = 2;
-  else added = 3;
-
-  const atkFinal = atkUnits;
-  const defFinal = defUnits + added;
-  const diff = Math.abs(atkFinal - defFinal);
-  const attackerWins = atkFinal > defFinal;
-
-  log(`Stances: ${attName}=${attStance}, ${defName}=${defStance} | RPS: ${win || "tie"} (def+${stanceDefBonus})`);
-  log(`Defence: terrain ${rs.meta.terrainDef} + castles ${2*Number(rs.buildings.Castle||0)} + capital ${rs.meta.capital?1:0} + stance ${stanceDefBonus} + die ${roll}(${mod>=0?"+":""}${mod}) = ${defence} => +${added}`);
-  log(`Final: ${attName} ${atkFinal} vs ${defName} ${defFinal} | diff ${diff}`);
-
-  if (diff <= 1){
-    rs.armies[attId] = Math.max(0, atkUnits - 1);
-    rs.armies[defId] = Math.max(0, defUnits - 1);
-    log(`Result: Stalemate — both lose 1.`);
-    return;
+  $("#modal").classList.remove("hidden");
+  if(closable){
+    $("#modal").onclick=(e)=>{ if(e.target.id==="modal") closeModal(); };
+  } else {
+    $("#modal").onclick=null;
   }
+}
+function closeModal(){ $("#modal").classList.add("hidden"); }
 
-  let loss = 1, retreat = 1, label="Minor win";
-  if (diff <= 3){ loss=1; retreat=1; label="Minor win"; }
-  else if (diff <= 5){ loss=2; retreat=2; label="Clear win"; }
-  else { loss=3; retreat=2; label="Crushing win"; }
-
-  const winnerId = attackerWins ? attId : defId;
-  const loserId = attackerWins ? defId : attId;
-
-  const loserUnitsNow = Number(rs.armies[loserId]||0);
-  rs.armies[loserId] = Math.max(0, loserUnitsNow - loss);
-  log(`Result: ${label} — ${game.players[winnerId].name} wins. ${game.players[loserId].name} loses ${loss}.`);
-
-  if (label === "Crushing win"){
-    rs.armies[loserId] = 0;
-    log(`${game.players[loserId].name}'s remaining troops are disbanded.`);
+function renderChoiceList(items){
+  const wrap=document.createElement("div");
+  wrap.style.display="flex";
+  wrap.style.flexDirection="column";
+  wrap.style.gap="10px";
+  for(const it of items){
+    const btn=document.createElement("button");
+    btn.className="btn";
+    btn.disabled=!!it.disabled;
+    btn.innerHTML=`<div style="font-weight:900">${escapeHtml(it.title)}</div><div style="opacity:.75;font-size:12px">${escapeHtml(it.subtitle||"")}</div>`;
+    btn.onclick=it.onClick;
+    wrap.appendChild(btn);
   }
-
-  retreatLoser(loserId, rs.name, retreat);
+  return wrap;
 }
 
-function retreatLoser(loserId, fromName, steps){
-  const pl = game.players[loserId];
-  if (!pl || !pl.alive) return;
-  const units = Number(game.regions[fromName].armies[loserId]||0);
-  if (units <= 0) return;
-
-  let current = fromName;
-  for (let i=0;i<steps;i++){
-    const neighbors = Object.keys(MAP[current]||{});
-    if (!neighbors.length) break;
-    current = neighbors[Math.floor(Math.random()*neighbors.length)];
-  }
-
-  game.regions[fromName].armies[loserId] = 0;
-  game.regions[current].armies[loserId] = Number(game.regions[current].armies[loserId]||0) + units;
-  log(`${pl.name} retreats to ${current}.`);
+/** ---------- Save/Load ---------- **/
+function saveGame(){
+  if(!G || G.mode!=="playing"){ alert("No active game."); return; }
+  const data = JSON.stringify(G);
+  localStorage.setItem("bfb_save", data);
+  logEntry("System","Saved","Saved to your phone browser storage.");
 }
-
-/* --- AI --- */
-
-function maybeRunAI(){
-  if (!game || !game.started || game.winner !== null) return;
-  if (aiLock) return;
-  const pl = currentPlayer();
-  if (!pl.ai) return;
-
-  aiLock = true;
+function loadGame(){
+  const data = localStorage.getItem("bfb_save");
+  if(!data){ alert("No save found."); return; }
   try{
-    runAITurn(pl.id);
-  } finally {
-    aiLock = false;
-  }
-  renderAll();
-  endTurn();
-}
-
-function runAITurn(pid){
-  const pl = game.players[pid];
-  if (!pl.alive) return;
-
-  log(`🤖 ${pl.name} taking turn...`);
-  resolveEventFor(pid);
-  incomeAndUpkeepFor(pid);
-
-  while (game.ap > 0){
-    if (countActiveUnits(pid) === 0){
-      const totalStored = controlledRegions(pid).reduce((s,r)=>s+r.stored,0);
-      if (totalStored > 0){
-        const n = Math.min(totalStored, game.ap === 2 ? 3 : 2);
-        callUpAI(pid, n);
-        continue;
-      }
-    }
-    if (tryBuildAI(pid)) continue;
-    if (tryRecruitAI(pid)) continue;
-    if (tryAttackAI(pid)) continue;
-    if (tryMoveAI(pid)) continue;
-    break;
+    G = JSON.parse(data);
+    // rehydrate any missing fields
+    G.pendingPrompt=null;
+    G.aiTurnSummary=G.aiTurnSummary||"";
+    G.selected=G.selected||{regionKey:null, armyId:null};
+    G.mode="playing";
+    renderRegions();
+    renderOverlay();
+    renderUI();
+    logEntry("System","Loaded","Game loaded.");
+  }catch(e){
+    alert("Save is corrupted.");
   }
 }
 
-function callUpAI(pid, n){
-  const pl = game.players[pid];
-  const regs = controlledRegions(pid);
-  let totalStored = regs.reduce((s,r)=>s+r.stored,0);
-  if (totalStored <= 0) return false;
-
-  const want = Math.max(1, Math.min(totalStored, n));
-  const costAP = (want <= 2) ? 1 : 2;
-  if (game.ap < costAP) return false;
-
-  regs.sort((a,b)=>b.stored-a.stored);
-  let remaining = want;
-  for (const r of regs){
-    while (r.stored > 0 && remaining > 0){
-      r.stored -= 1;
-      remaining -= 1;
-    }
-    if (remaining === 0) break;
-  }
-  const called = want - remaining;
-  const cap = game.regions[pl.capital];
-  cap.armies[pid] = Number(cap.armies[pid]||0) + called;
-  game.ap -= costAP;
-  log(`🤖 ${pl.name} calls up ${called} unit(s) to ${pl.capital} (AP-${costAP}).`);
-  return true;
-}
-
-function isCapitalThreatened(pid){
-  const cap = game.players[pid].capital;
-  const neighbors = Object.keys(MAP[cap]||{});
-  for (const n of neighbors){
-    const rs = game.regions[n];
-    if (!rs || rs.meta.outOfPlay) continue;
-    if (Object.entries(rs.armies).some(([op,u])=>Number(op)!==pid && Number(u)>0 && game.players[Number(op)]?.alive)){
-      return true;
-    }
-  }
-  return false;
-}
-
-function tryBuildAI(pid){
-  const pl = game.players[pid];
-  if (game.ap < 1) return false;
-
-  const regs = controlledRegions(pid).filter(r=>!r.meta.transitOnly && !r.meta.outOfPlay);
-  if (!regs.length) return false;
-
-  regs.sort((a,b)=>(b.meta.capital?1:0)-(a.meta.capital?1:0));
-  const r = regs[0];
-
-  if (totalBuildings(r) >= r.meta.slots) return false;
-
-  const active = countActiveUnits(pid);
-  const threatened = isCapitalThreatened(pid);
-
-  let build = null;
-  if (threatened && pl.silver >= 3) build = "Castle";
-  else if (pl.food <= active) build = "Farm";
-  else if (pl.silver <= 2) build = "Market";
-  else if (pl.influence < 8 && pl.silver >= 3) build = "Hall";
-  else if (pl.silver >= 2) build = "Market";
-  else return false;
-
-  const discount = Number(game.buildDiscount[pid]||0);
-  const cost = Math.max(0, BUILD_COSTS[build] - discount);
-  if (pl.silver < cost) return false;
-
-  pl.silver -= cost;
-  game.buildDiscount[pid] = 0;
-  r.buildings[build] += 1;
-  game.ap -= 1;
-  log(`🤖 ${pl.name} builds ${build} in ${r.name} (paid ${cost}S).`);
-  return true;
-}
-
-function tryRecruitAI(pid){
-  const pl = game.players[pid];
-  if (game.ap < 1) return false;
-  if (pl.silver < 1) return false;
-  const regs = controlledRegions(pid).filter(r=>!r.meta.transitOnly && r.stored < r.meta.levyCap);
-  if (!regs.length) return false;
-
-  regs.sort((a,b)=>a.stored-b.stored);
-  const r = regs[0];
-  pl.silver -= 1;
-  r.stored += 1;
-  game.ap -= 1;
-  log(`🤖 ${pl.name} recruits 1 stored levy in ${r.name}.`);
-  return true;
-}
-
-function tryAttackAI(pid){
-  if (game.ap < 1) return false;
-
-  const battleRegions = Object.values(game.regions).filter(rs=>{
-    if (rs.meta.outOfPlay) return false;
-    const myU = Number(rs.armies[pid]||0);
-    return myU>0 && hasEnemyIn(rs,pid);
-  });
-  if (!battleRegions.length) return false;
-
-  battleRegions.sort((a,b)=>attackScore(pid,b)-attackScore(pid,a));
-  const rs = battleRegions[0];
-
-  const enemies = Object.entries(rs.armies)
-    .filter(([op,u])=>Number(op)!==pid && Number(u)>0 && game.players[Number(op)]?.alive)
-    .map(([op])=>Number(op));
-
-  enemies.sort((a,b)=>Number(rs.armies[a]||0)-Number(rs.armies[b]||0));
-  const defId = enemies[0];
-
-  resolveCombat(pid, defId, rs, true);
-  game.ap -= 1;
-  return true;
-}
-
-function attackScore(pid, rs){
-  const myU = Number(rs.armies[pid]||0);
-  const enemyU = Object.entries(rs.armies)
-    .filter(([op,u])=>Number(op)!==pid && Number(u)>0 && game.players[Number(op)]?.alive)
-    .reduce((s,[,u])=>s+Number(u),0);
-  return myU - enemyU;
-}
-
-function tryMoveAI(pid){
-  const stacks = Object.values(game.regions).filter(rs=>!rs.meta.outOfPlay && Number(rs.armies[pid]||0)>0 && (rs.name in MAP));
-  if (!stacks.length) return false;
-
-  stacks.sort((a,b)=>Number(b.armies[pid])-Number(a.armies[pid]));
-  const from = stacks[0];
-
-  const candidates = Object.keys(MAP[from.name]||{});
-  if (!candidates.length) return false;
-
-  candidates.sort((a,b)=>moveValue(pid, b) - moveValue(pid, a));
-  const toName = candidates[0];
-  const cost = MAP[from.name][toName];
-  if (game.ap < cost) return false;
-
-  const to = game.regions[toName];
-  const units = Number(from.armies[pid]||0);
-  from.armies[pid] = 0;
-  to.armies[pid] = Number(to.armies[pid]||0) + units;
-  game.ap -= cost;
-  log(`🤖 ${game.players[pid].name} moves ${units} ${from.name} → ${toName} (AP-${cost}).`);
-  return true;
-}
-
-function moveValue(pid, regionName){
-  const rs = game.regions[regionName];
-  if (!rs || rs.meta.outOfPlay) return -999;
-  if (rs.meta.transitOnly) return -5;
-  if (rs.owner === null) return 10;
-  if (rs.owner !== pid) return 12;
-  return 0;
-}
-
-/* --- Human action guards --- */
-
-function requireGame(){
-  if (!game || !game.started){
-    alert("Start a game first.");
-    return false;
-  }
-  if (game.winner !== null){
-    alert("Game over. Start a new game.");
-    return false;
-  }
-  return true;
-}
-function requireHumanTurn(){
-  if (currentPlayer().id !== game.humanId){
-    alert("It’s an AI turn.");
-    return false;
-  }
-  return true;
-}
-function requireAP(n){
-  if (game.ap < n){
-    alert(`Not enough AP (need ${n}).`);
-    return false;
-  }
-  return true;
-}
-function selectedRegionA(){ return game.selection.A ? game.regions[game.selection.A] : null; }
-function selectedRegionB(){ return game.selection.B ? game.regions[game.selection.B] : null; }
-
-/* --- Human buttons --- */
-
-async function humanResolveEvent(){
-  if (!requireGame() || !requireHumanTurn()) return;
-  pushHistory();
-  await resolveEventFor(game.humanId);
-  renderAll();
-}
-function humanIncome(){
-  if (!requireGame() || !requireHumanTurn()) return;
-  pushHistory();
-  incomeAndUpkeepFor(game.humanId);
-  renderAll();
-}
-
-async function humanRecruit(){
-  if (!requireGame() || !requireHumanTurn()) return;
-  if (!requireAP(1)) return;
-  const pl = currentPlayer();
-  if (pl.silver < 1){ alert("Not enough Silver."); return; }
-
-  const regs = controlledRegions(pl.id).filter(r=>!r.meta.transitOnly && r.stored < r.meta.levyCap);
-  if (!regs.length){ alert("No levy slots available."); return; }
-
-  const pick = await pickFromList("Recruit levy into which region?", regs.map(r=>`${r.name} (stored ${r.stored}/${r.meta.levyCap})`));
-  if (!pick) return;
-  const rName = pick.split(" (")[0];
-  pushHistory();
-  pl.silver -= 1;
-  game.regions[rName].stored += 1;
-  game.ap -= 1;
-  log(`${pl.name} recruits 1 stored levy in ${rName}. (AP-1, S-1)`);
-  renderAll();
-}
-
-async function humanCallUp(){
-  if (!requireGame() || !requireHumanTurn()) return;
-  const pl = currentPlayer();
-  const regs = controlledRegions(pl.id);
-  const totalStored = regs.reduce((s,r)=>s+r.stored,0);
-  if (totalStored <= 0){ alert("No stored levies."); return; }
-
-  const nStr = await promptModal("Call Up", `How many levies to call up to ${pl.capital}? (1-${totalStored})`, "1");
-  if (!nStr) return;
-  const want = Math.max(1, Math.min(totalStored, Number(nStr)));
-  const costAP = (want <= 2) ? 1 : 2;
-  if (!requireAP(costAP)) return;
-
-  pushHistory();
-  let remaining = want;
-  while (remaining > 0){
-    const sources = controlledRegions(pl.id).filter(r=>r.stored>0).map(r=>r.name);
-    const src = await pickFromList(`Choose source region (${remaining} remaining)`, sources);
-    if (!src) break;
-    game.regions[src].stored -= 1;
-    remaining -= 1;
-  }
-  const called = want - remaining;
-  const cap = game.regions[pl.capital];
-  cap.armies[pl.id] = Number(cap.armies[pl.id]||0) + called;
-  game.ap -= costAP;
-  log(`${pl.name} calls up ${called} unit(s) to ${pl.capital}. (AP-${costAP})`);
-  renderAll();
-}
-
-function humanMove(){
-  if (!requireGame() || !requireHumanTurn()) return;
-  const pl = currentPlayer();
-  const A = selectedRegionA();
-  const B = selectedRegionB();
-  if (!A || !B){ alert("Select A (from) and B (to)."); return; }
-  const cost = (MAP[A.name]||{})[B.name];
-  if (cost == null){ alert("Not connected."); return; }
-  if (!requireAP(cost)) return;
-  const units = Number(A.armies[pl.id]||0);
-  if (units <= 0){ alert("No army there."); return; }
-
-  pushHistory();
-  A.armies[pl.id] = 0;
-  B.armies[pl.id] = Number(B.armies[pl.id]||0) + units;
-  game.ap -= cost;
-  log(`${pl.name} moves ${units} ${A.name} → ${B.name} (AP-${cost}).`);
-  renderAll();
-}
-
-async function humanAttack(){
-  if (!requireGame() || !requireHumanTurn()) return;
-  if (!requireAP(1)) return;
-  const pl = currentPlayer();
-  const A = selectedRegionA();
-  const B = selectedRegionB();
-
-  let battleground = null;
-  if (B && Number(B.armies[pl.id]||0) > 0 && hasEnemyIn(B, pl.id)) battleground = B;
-  else if (A && Number(A.armies[pl.id]||0) > 0 && hasEnemyIn(A, pl.id)) battleground = A;
-
-  if (!battleground){ alert("No valid battle: you need your army + enemy in same region."); return; }
-
-  const enemies = Object.entries(battleground.armies)
-    .filter(([op,u])=>Number(op)!==pl.id && Number(u)>0 && game.players[Number(op)]?.alive)
-    .map(([op])=>Number(op));
-
-  const pick = await pickFromList(`Attack in ${battleground.name}. Choose defender`, enemies.map(id=>game.players[id].name));
-  if (!pick) return;
-  const defId = enemies.find(id=>game.players[id].name === pick);
-
-  pushHistory();
-  resolveCombat(pl.id, defId, battleground, false);
-  game.ap -= 1;
-  renderAll();
-}
-
-async function humanBuild(){
-  if (!requireGame() || !requireHumanTurn()) return;
-  if (!requireAP(1)) return;
-  const pl = currentPlayer();
-  const A = selectedRegionA();
-  if (!A){ alert("Select a region (A)."); return; }
-  if (A.owner !== pl.id){ alert("You must control the region."); return; }
-  if (A.meta.transitOnly){ alert("Cannot build on transit-only region."); return; }
-  if (totalBuildings(A) >= A.meta.slots){ alert("No building slots available."); return; }
-
-  const opts = ["Farm","Market","Hall","Castle"];
-  const pick = await pickFromList("Choose building", opts.map(b=>`${b} (cost ${BUILD_COSTS[b]})`));
-  if (!pick) return;
-  const building = pick.split(" ")[0];
-
-  const discount = Number(game.buildDiscount[pl.id]||0);
-  const cost = Math.max(0, BUILD_COSTS[building] - discount);
-  if (pl.silver < cost){ alert(`Not enough Silver (need ${cost}).`); return; }
-
-  pushHistory();
-  pl.silver -= cost;
-  game.buildDiscount[pl.id] = 0;
-  A.buildings[building] += 1;
-  game.ap -= 1;
-  log(`${pl.name} builds ${building} in ${A.name} (paid ${cost}S).`);
-  renderAll();
-}
-
-async function humanPillage(){
-  if (!requireGame() || !requireHumanTurn()) return;
-  if (!requireAP(1)) return;
-  const pl = currentPlayer();
-  const A = selectedRegionA();
-  if (!A){ alert("Select a region (A)."); return; }
-  if (A.meta.transitOnly || A.meta.outOfPlay) { alert("Invalid region."); return; }
-  if (Number(A.armies[pl.id]||0) <= 0){ alert("You must have an army there."); return; }
-  if (A.owner === pl.id){ alert("Can't pillage your own controlled region."); return; }
-
-  const destroyable = [];
-  if (A.buildings.Farm > 0) destroyable.push("Farm");
-  if (A.buildings.Market > 0) destroyable.push("Market");
-  if (A.buildings.Hall > 0) destroyable.push("Hall");
-  if (!destroyable.length){ alert("No pillageable buildings (castles cannot be pillaged)."); return; }
-
-  const pick = await pickFromList("Destroy which building?", destroyable);
-  if (!pick) return;
-
-  pushHistory();
-  A.buildings[pick] -= 1;
-  pl.silver += 1;
-  A.owner = null;
-  game.ap -= 1;
-  log(`${pl.name} pillages ${A.name}: destroys ${pick}, gains +1S. Region becomes uncontrolled.`);
-  renderAll();
-}
-
-
-async function humanDisband(){
-  if (!requireGame() || !requireHumanTurn()) return;
-  if (!requireAP(1)) return;
-  const pl = currentPlayer();
-  const A = selectedRegionA();
-  if (!A){ alert("Select a region (A)."); return; }
-  const units = Number(A.armies[pl.id]||0);
-  if (units <= 0){ alert("No units there to disband."); return; }
-
-  const nStr = await promptModal("Disband", `Disband how many units in ${A.name}? (1-${units})`, "1");
-  if (!nStr) return;
-  const n = Math.max(1, Math.min(units, Number(nStr)));
-
-  pushHistory();
-  A.armies[pl.id] = units - n;
-  game.ap -= 1;
-  log(`${pl.name} disbands ${n} unit(s) in ${A.name}. (AP-1)`);
-  renderAll();
-}
-
-
-/* --- 2D SVG Map rendering --- */
-
-function renderMap(){
-  const svg = $("mapSvg");
-  svg.innerHTML = "";
-
-  if (!game || !game.started) return;
-
-  // Stylised UK silhouette for orientation (not to scale)
-  const uk = el("path", {
-    id: "ukSilhouette",
-    d: "M220,635 L185,610 L165,565 L150,520 L162,480 L190,450 L215,420 L235,390 L260,360 L290,330 L325,305 L360,275 L395,245 L430,220 L470,195 L515,170 L560,145 L610,120 L660,105 L705,105 L745,120 L775,145 L795,180 L805,220 L795,255 L775,290 L755,325 L735,360 L715,395 L695,430 L670,465 L640,495 L605,520 L560,540 L515,552 L470,565 L425,585 L385,605 L345,622 Z",
-    fill: "#0b0c10",
-    stroke: "#2a2e38",
-    "stroke-width": "3",
-    opacity: "0.95"
-  });
-  svg.appendChild(uk);
-
-  const drawn = new Set();
-  for (const [from, tos] of Object.entries(MAP)){
-    const a = game.regions[from];
-    if (!a || a.meta.outOfPlay) continue;
-    for (const [to, cost] of Object.entries(tos)){
-      const b = game.regions[to];
-      if (!b || b.meta.outOfPlay) continue;
-
-      const key = [from,to].sort().join("|");
-      if (drawn.has(key)) continue;
-      drawn.add(key);
-
-      const [x1,y1] = NODE_POS[from] || [100,100];
-      const [x2,y2] = NODE_POS[to] || [200,200];
-
-      const line = el("line", { x1, y1, x2, y2, stroke:"#2a2e38", "stroke-width":"4" });
-      svg.appendChild(line);
-
-      const mx = (x1+x2)/2;
-      const my = (y1+y2)/2;
-      const t = el("text", { x: mx, y: my, class:"edgeLabel", "text-anchor":"middle", "dominant-baseline":"middle" });
-      t.textContent = String(cost);
-      svg.appendChild(t);
-    }
-  }
-
-  for (const [name, rs] of Object.entries(game.regions)){
-    if (rs.meta.outOfPlay) continue;
-    const [x,y] = NODE_POS[name] || [50,50];
-
-    const owner = rs.owner;
-    const ownerColor = owner === null ? "#a7acb7" : colorForPlayer(owner);
-
-    const g = el("g", { "data-node": name, style:"cursor:pointer" });
-
-    const r = 24;
-    const circle = el("circle", {
-      cx:x, cy:y, r,
-      class:`nodeCircle ${game.selection.A===name?"nodeSelA":""} ${game.selection.B===name?"nodeSelB":""}`,
-      fill: ownerColor
-    });
-    g.appendChild(circle);
-
-    const label = el("text", { x, y: y-30, class:"nodeText", "text-anchor":"middle" });
-    label.textContent = name;
-    g.appendChild(label);
-
-    const meta = el("text", { x, y: y+40, class:"nodeMeta", "text-anchor":"middle" });
-    const armies = regionArmiesText(rs);
-    const occ = rs.meta.transitOnly ? "Transit" : `Occ ${rs.occupation.timer}`;
-    meta.textContent = `${occ} • ${armies === "none" ? "—" : armies}`;
-    g.appendChild(meta);
-
-    g.addEventListener("click", ()=>{
-      if (!game.selection.A || game.selection.A === name){
-        game.selection.A = (game.selection.A === name) ? null : name;
-      } else {
-        game.selection.B = name;
-      }
-      renderAll();
-      renderRegionDetail();
-    });
-
-    svg.appendChild(g);
-  }
-}
-
-function el(tag, attrs={}){
-  const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (const [k,v] of Object.entries(attrs)) n.setAttribute(k, String(v));
-  return n;
-}
-
-function colorForPlayer(pid){
-  const palette = ["#7dd3fc","#86efac","#fbbf24","#fb7185","#c4b5fd"];
-  return palette[pid % palette.length];
-}
-
-/* --- Side panels --- */
-
-function renderPlayersPanel(){
-  const wrap = $("playersPanel");
-  wrap.innerHTML = "";
-  if (!game || !game.started) return;
-
-  for (const pl of game.players){
-    const isCurrent = currentPlayer().id === pl.id;
-    const div = document.createElement("div");
-    div.className = "playerCard" + (pl.alive ? "" : " dead");
-    div.innerHTML = `
-      <div class="playerTop">
-        <div class="playerName">${pl.name} ${isCurrent ? "⭐" : ""} ${pl.ai ? "🤖" : ""}</div>
-        <div class="badge">${pl.kingdom}</div>
-      </div>
-      <div class="stats">
-        <div class="stat">Food: <b>${pl.food}</b></div>
-        <div class="stat">Silver: <b>${pl.silver}</b></div>
-        <div class="stat">Influence: <b>${pl.influence}</b></div>
-        <div class="stat">Active: <b>${countActiveUnits(pl.id)}</b></div>
-      </div>
-    `;
-    wrap.appendChild(div);
-  }
-}
-
-
-function renderTurnSummary(){
-  const el = $("turnSummary");
-  if (!el) return;
-  if (!game || !game.started){ el.textContent = "Start a game."; return; }
-  const out = [];
-  for (const s of (game.turnSummaries || [])){
-    out.push(`R${s.round} • ${s.who}`);
-    for (const ln of (s.lines || [])){
-      out.push("  " + ln.replace(/^\s+/, "").slice(0, 140));
-    }
-    out.push("");
-  }
-  el.textContent = out.join("\n").trim() || "No turns yet.";
-}
-
-
-function renderRegionDetail(){
-  const elD = $("regionDetail");
-  if (!game || !game.started){ elD.textContent = "Tap a region."; return; }
-  const A = selectedRegionA();
-  const B = selectedRegionB();
-  $("selA").textContent = A ? A.name : "—";
-  $("selB").textContent = B ? B.name : "—";
-  if (!A){ elD.textContent = "Tap a region."; return; }
-
-  const b = A.buildings;
-  const links = Object.entries(MAP[A.name]||{}).map(([to,c])=>`${to} (AP ${c})`).join(", ") || "none";
-  elD.innerHTML = [
-    `<b>${A.name}</b> ${A.meta.capital ? "(Capital)" : ""} ${A.meta.transitOnly ? "(Transit-only)" : ""}`,
-    `Owner: <b>${regionLabelOwner(A)}</b>`,
-    `Terrain defence: <b>+${A.meta.terrainDef}</b>`,
-    `Levy cap: <b>${A.meta.levyCap}</b> | Stored: <b>${A.stored}</b>`,
-    `Slots: <b>${A.meta.slots}</b> | Buildings: Farm ${b.Farm}, Market ${b.Market}, Hall ${b.Hall}, Castle ${b.Castle}`,
-    `Armies: <b>${regionArmiesText(A)}</b>`,
-    `Occupation: sole=<b>${A.occupation.sole===null?"—":game.players[A.occupation.sole]?.name}</b> timer=<b>${A.occupation.timer}</b>`,
-    `<span class="muted">Links:</span> ${links}`
-  ].join("<br/>");
-}
-
-function renderTurnInfo(){
-  if (!game || !game.started){
-    $("turnInfo").textContent = "Not started.";
-    $("roundNum").textContent = "—";
-    $("apNum").textContent = "—";
-    $("subtitle").textContent = "Single Player (AI Kingdoms)";
-    return;
-  }
-  const pl = currentPlayer();
-  $("turnInfo").innerHTML = `<b>${pl.name}</b> (${pl.kingdom}) ${pl.ai ? "🤖" : ""}`;
-  $("roundNum").textContent = String(game.round);
-  $("apNum").textContent = String(game.ap);
-  $("subtitle").textContent = game.winner !== null ? `Winner: ${game.players[game.winner].name}` : `Round ${game.round} • ${pl.name}'s turn`;
-}
-
-function renderAll(){
-  renderTurnInfo();
-  renderPlayersPanel();
-  renderTurnSummary();
-  renderMap();
-  renderRegionDetail();
-
-  const isHuman = game && game.started && game.winner === null && currentPlayer().id === game.humanId;
-
-  const disable = (id, cond) => { $(id).disabled = !!cond; };
-  const baseDisabled = (!game || !game.started || game.winner !== null);
-
-  ["actRecruit","actCallup","actMove","actAttack","actBuild","actPillage","actDisband"]
-  .forEach(id => disable(id, baseDisabled || !isHuman));
-
-// Events + income/upkeep run automatically at the start of every turn
-disable("actEvent", true);
-disable("actIncome", true);
-
-  disable("btnEndTurn", baseDisabled || !isHuman);
-  disable("btnUndo", baseDisabled);
-  disable("btnSave", baseDisabled);
-  disable("btnLoad", false);
-}
-
-/* --- Modals --- */
-
-async function promptModal(title, msg, def=""){
-  const modal = $("modal");
-  const inputId = "modalInput";
-  $("modalTitle").textContent = title;
-  $("modalBody").innerHTML = `
-    <div class="small">${escapeHtml(msg)}</div>
-    <div style="margin-top:10px">
-      <input id="${inputId}" value="${escapeAttr(def)}" style="width:100%"/>
-    </div>
+/** ---------- Help ---------- **/
+function showHelp(){
+  const d=document.createElement("div");
+  d.innerHTML = `
+    <p><b>How to play (mobile)</b></p>
+    <ul>
+      <li>Pan the map by dragging. Zoom with + / −.</li>
+      <li>Tap a region dot to select it. Tap one of your coloured army tokens to select that army.</li>
+      <li>Each turn you have <b>2 AP</b>. Move costs shown on the map lines.</li>
+      <li><b>Events</b> and <b>Income & Upkeep</b> happen automatically at the start of each player’s turn (round 1 skips events).</li>
+      <li>Food upkeep is <b>1 per active unit</b>. If you can’t pay, you must disband.</li>
+      <li>Isle of Man is <b>transit-only</b> (cannot be claimed or built on).</li>
+    </ul>
+    <p><b>Victory</b></p>
+    <ul>
+      <li>Influence: reach 18 (2–3 players) or 24 (4–5 players).</li>
+      <li>Dominion: control your 4 core regions + 2 extra (2–3 players) or +4 extra (4–5 players).</li>
+      <li>Or eliminate all other kingdoms by taking their capitals.</li>
+    </ul>
   `;
-  $("modalOk").textContent = "OK";
-  $("modalCancel").textContent = "Cancel";
+  openModal("Help", d, [{text:"Close", kind:"primary", onClick:closeModal}], true);
+}
 
-  return new Promise((resolve)=>{
-    modal.addEventListener("close", ()=>{
-      if (modal.returnValue === "ok") resolve($(inputId).value);
-      else resolve(null);
-    }, { once:true });
-    modal.showModal();
-    setTimeout(()=>$(inputId).focus(), 50);
+/** ---------- Reset ---------- **/
+function resetToSetup(){
+  G=null;
+  $("#log").innerHTML="";
+  $("#setupCard").classList.remove("hidden");
+  $("#turnCard").classList.add("hidden");
+  $("#logCard").classList.add("hidden");
+  // keep map rendered for nice look
+}
+
+/** ---------- Wire up UI ---------- **/
+function wire(){
+  setupMapUI();
+
+  $("#btnStart").addEventListener("click", startGame);
+  $("#btnNew").addEventListener("click", ()=>{ resetToSetup(); });
+  $("#btnSave").addEventListener("click", saveGame);
+  $("#btnLoad").addEventListener("click", loadGame);
+  $("#btnHelp").addEventListener("click", showHelp);
+
+  $("#sheetClose").addEventListener("click", closeSheet);
+
+  $("#btnMove").addEventListener("click", doMove);
+  $("#btnAttack").addEventListener("click", doAttack);
+  $("#btnRecruit").addEventListener("click", doRecruit);
+  $("#btnCallup").addEventListener("click", doCallup);
+  $("#btnBuild").addEventListener("click", doBuild);
+  $("#btnPillage").addEventListener("click", doPillage);
+  $("#btnDisband").addEventListener("click", doDisband);
+  $("#btnEnd").addEventListener("click", endTurn);
+  $("#btnClearLog").addEventListener("click", ()=>$("#log").innerHTML="");
+
+  // click on map background clears selection
+  $("#mapStage").addEventListener("click", (e)=>{
+    if(e.target.classList.contains("regionDot") || e.target.classList.contains("token")) return;
+    G && (G.selected={regionKey:null, armyId:null});
+    renderUI();
   });
 }
 
-async function pickFromList(title, items){
-  const buttons = items.map((it, i)=>`
-    <button type="button" class="btn" data-i="${i}" style="width:100%; text-align:left; margin:6px 0;">
-      ${escapeHtml(it)}
-    </button>
-  `).join("");
-
-  const modal = $("modal");
-  $("modalTitle").textContent = title;
-  $("modalBody").innerHTML = buttons;
-  $("modalOk").textContent = "Close";
-  $("modalCancel").textContent = "Close";
-
-  return new Promise((resolve)=>{
-    function cleanup(){
-      modal.removeEventListener("close", onClose);
-      $("modalBody").querySelectorAll("button[data-i]").forEach(b=>b.removeEventListener("click", onPick));
-    }
-    function onPick(e){
-      const idx = Number(e.currentTarget.getAttribute("data-i"));
-      cleanup();
-      modal.close("cancel");
-      resolve(items[idx]);
-    }
-    function onClose(){
-      cleanup();
-      resolve(null);
-    }
-    modal.addEventListener("close", onClose, { once:true });
-    $("modalBody").querySelectorAll("button[data-i]").forEach(b=>b.addEventListener("click", onPick));
-    modal.showModal();
-  });
-}
-
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])); }
-function escapeAttr(s){ return escapeHtml(s).replace(/"/g,"&quot;"); }
-
-/* --- Buttons & wiring --- */
-
-$("btnStart").addEventListener("click", ()=>{
-  const total = Number($("playerCount").value);
-  const name = $("yourName").value.trim() || "You";
-  const kingdom = $("yourKingdom").value;
-  history = [];
-  startSinglePlayerGame(total, name, kingdom);
+window.addEventListener("load", ()=>{
+  wire();
+  // initial dummy state for map render
+  // create a lightweight G for showing map before starting
+  G = {
+    mode:"setup",
+    activeRegions: Object.keys(MAP.regions),
+    regionState: Object.fromEntries(Object.keys(MAP.regions).map(k=>[k,{owner:null,reserve:0,buildings:[],contest:null}])),
+    armies:[],
+    selected:{regionKey:null, armyId:null},
+    players:[],
+    ap:2,
+    round:1,
+    aiTurnSummary:"",
+  };
+  renderRegions();
+  renderOverlay();
+  renderTokens();
 });
-
-$("btnEndTurn").addEventListener("click", ()=>{ if(requireGame() && requireHumanTurn()) endTurn(); });
-$("btnUndo").addEventListener("click", ()=>{ if(requireGame()) undo(); });
-
-$("actEvent").addEventListener("click", humanResolveEvent);
-$("actIncome").addEventListener("click", humanIncome);
-$("actRecruit").addEventListener("click", humanRecruit);
-$("actCallup").addEventListener("click", humanCallUp);
-$("actMove").addEventListener("click", humanMove);
-$("actAttack").addEventListener("click", humanAttack);
-$("actBuild").addEventListener("click", humanBuild);
-$("actPillage").addEventListener("click", humanPillage);
-$("actDisband").addEventListener("click", humanDisband);
-
-$("btnNew").addEventListener("click", ()=>{
-  if (confirm("Start a new game?")){
-    game = null; history = [];
-    $("log").textContent = "";
-    renderAll();
-  }
-});
-
-$("btnSave").addEventListener("click", ()=>{
-  if (!game || !game.started){ alert("No game to save."); return; }
-  localStorage.setItem("britannia_save", JSON.stringify(game));
-  alert("Saved on this device.");
-});
-$("btnLoad").addEventListener("click", ()=>{
-  const raw = localStorage.getItem("britannia_save");
-  if (!raw){ alert("No save found."); return; }
-  game = JSON.parse(raw);
-  history = [];
-  renderAll();
-  log("Loaded save.");
-  maybeRunAI();
-});
-$("btnHelp").addEventListener("click", ()=> $("help").showModal());
-
-$("btnEditMap").addEventListener("click", ()=>{
-  const dlg = $("mapEditor");
-  const box = $("mapEditorText");
-  const current = { MAP, NODE_POS };
-  box.value = JSON.stringify(current, null, 2);
-  dlg.showModal();
-});
-
-$("mapEditorSave").addEventListener("click", (e)=>{
-  try{
-    const raw = $("mapEditorText").value;
-    const obj = JSON.parse(raw);
-    if(!obj.MAP || !obj.NODE_POS) throw new Error("JSON must contain MAP and NODE_POS");
-    localStorage.setItem("britannia_map_override", JSON.stringify({ MAP: obj.MAP, NODE_POS: obj.NODE_POS }));
-    alert("Saved. Reloading…");
-    location.reload();
-  }catch(err){
-    e.preventDefault();
-    alert("Invalid JSON: " + err.message);
-  }
-});
-
-// service worker
-if ("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js").catch(()=>{});
-}
-
-renderAll();
