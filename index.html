@@ -19,6 +19,7 @@
       <button id="btnSave" class="btn">Save</button>
       <button id="btnLoad" class="btn">Load</button>
       <button id="btnHelp" class="btn btnGhost">Help</button>
+      <button id="btnEditMap" class="btn btnGhost">Edit Map</button>
     </div>
   </header>
 
@@ -79,6 +80,7 @@
         <button id="actAttack" class="btn">Attack</button>
         <button id="actBuild" class="btn">Build</button>
         <button id="actPillage" class="btn">Pillage</button>
+        <button id="actDisband" class="btn btnDanger">Disband</button>
       </div>
 
       <div class="panelTitle">Log</div>
@@ -101,6 +103,10 @@
     <section class="panel right">
       <div class="panelTitle">Players</div>
       <div id="playersPanel" class="playersPanel"></div>
+
+      <div class="panelTitle">Turn summary</div>
+      <div class="card" id="turnSummary"></div>
+
 
       <div class="panelTitle">Region Detail</div>
       <div class="card" id="regionDetail">Tap a region.</div>
@@ -135,6 +141,23 @@
       </div>
     </form>
   </dialog>
+
+  <dialog id="mapEditor" class="modal">
+  <form method="dialog" class="modalInner">
+    <div class="modalTitle">Edit Map Data</div>
+    <div class="modalBody small">
+      <div class="muted" style="margin-bottom:8px">
+        Paste JSON containing <b>MAP</b> and <b>NODE_POS</b>. This overrides the default map on this device.
+      </div>
+      <textarea id="mapEditorText" style="width:100%; height:240px; background:#0f1117; color:#f2f3f5; border:1px solid #2a2e38; border-radius:12px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono','Courier New', monospace;"></textarea>
+      <div class="muted" style="margin-top:8px">Tip: keep AP costs in MAP matching your board.</div>
+    </div>
+    <div class="modalActions">
+      <button class="btn btnGhost" value="cancel">Cancel</button>
+      <button id="mapEditorSave" class="btn btnPrimary" value="ok">Save</button>
+    </div>
+  </form>
+</dialog>
 
   <script src="app.js"></script>
 </body>
