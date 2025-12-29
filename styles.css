@@ -147,12 +147,12 @@ select,input{
 }
 
 .edgeLabel{
-  font-size:14px;
+  font-size:16px;
   fill: var(--muted);
   font-weight:800;
   paint-order: stroke;
   stroke:#0f1117;
-  stroke-width:4px;
+  stroke-width:6px;
 }
 
 .nodeCircle{
@@ -160,7 +160,7 @@ select,input{
   stroke-width: 3px;
 }
 .nodeText{
-  font-size:14px;
+  font-size:16px;
   fill: var(--text);
   font-weight:900;
   paint-order: stroke;
@@ -176,3 +176,6 @@ select,input{
 
 .nodeSelA{ filter: drop-shadow(0 0 10px rgba(125,211,252,.7)); }
 .nodeSelB{ filter: drop-shadow(0 0 10px rgba(251,191,36,.7)); }
+
+
+#turnSummary{max-height:260px; overflow:auto; white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono','Courier New', monospace; font-size:12px; line-height:1.25; background:#0f1117;}

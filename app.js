@@ -41,7 +41,7 @@ const REGIONS = {
 };
 
 /* IMPORTANT: edit to match your board exactly */
-const MAP = {
+let MAP = {
   "Winchester": {"Sussex & Kent":1, "Hwicce":1},
   "Sussex & Kent": {"Winchester":1, "East Anglia":1},
   "East Anglia": {"Sussex & Kent":1, "Lindsey":1, "Tynedale":2}, // bypass example
@@ -71,7 +71,7 @@ const MAP = {
 };
 
 /* 2D layout: tweak coords to look like your board */
-const NODE_POS = {
+let NODE_POS = {
   "Cornwall": [120, 620],
   "Winchester": [230, 540],
   "Hwicce": [340, 500],
@@ -97,6 +97,16 @@ const NODE_POS = {
   "Scone": [820, 120],
   "Moray": [860, 60]
 };
+
+// Load local map overrides (stored on this device)
+try{
+  const saved = localStorage.getItem('britannia_map_override');
+  if(saved){
+    const obj = JSON.parse(saved);
+    if(obj && obj.MAP) MAP = obj.MAP;
+    if(obj && obj.NODE_POS) NODE_POS = obj.NODE_POS;
+  }
+}catch(e){}
 
 const BUILD_COSTS = { Farm:1, Market:2, Hall:3, Castle:3 };
 const CAPITAL_BASE = { food:1, silver:1 };
@@ -162,7 +172,9 @@ function newEmptyGame(){
     selection: { A:null, B:null },
     log: [],
     winner: null,
-    humanId: null
+    humanId: null,
+    turnSummaries: [],
+    _turnStartLog: 0
   };
 }
 
@@ -282,6 +294,7 @@ function startSinglePlayerGame(totalPlayers, yourName, yourKingdom){
   game.didIncomeThisTurn = Object.fromEntries(game.players.map(p=>[p.id,false]));
 
   log(`Game started. First player: ${currentPlayer().name}. Round 1 skips events.`);
+  startTurnFor(currentPlayer().id);
   renderAll();
   maybeRunAI();
 }
@@ -289,6 +302,14 @@ function startSinglePlayerGame(totalPlayers, yourName, yourKingdom){
 /* --- Turn flow --- */
 
 function endTurn(){
+  // record a compact summary of what happened this turn
+  try{
+    const actor = currentPlayer();
+    const slice = game.log.slice(game._turnStartLog);
+    game.turnSummaries.unshift({ round: game.round, who: actor.name, lines: slice.slice(-40) });
+    game.turnSummaries = game.turnSummaries.slice(0, 12);
+  }catch(e){}
+
   pushHistory();
 
   resolveOccupationAndControl();
@@ -320,6 +341,7 @@ function endTurn(){
     log(`— Round ${game.round} begins. —`);
   }
 
+  startTurnFor(pid);
   renderAll();
   maybeRunAI();
 }
@@ -387,9 +409,20 @@ function checkVictory(){
   return null;
 }
 
+
+function startTurnFor(pid){
+  // mark start for turn summary
+  game._turnStartLog = game.log.length;
+
+  // auto event + income for everyone
+  const pl = game.players[pid];
+  log(`\n▶ Turn: ${pl.name} — Round ${game.round} (AP ${game.ap})`);
+}
+
+
 /* --- Shared turn steps --- */
 
-async function resolveEventFor(pid){
+function resolveEventFor(pid){
   const pl = game.players[pid];
   if (!pl.alive) return;
   if (game.round === 1){
@@ -1026,6 +1059,28 @@ async function humanPillage(){
   renderAll();
 }
 
+
+async function humanDisband(){
+  if (!requireGame() || !requireHumanTurn()) return;
+  if (!requireAP(1)) return;
+  const pl = currentPlayer();
+  const A = selectedRegionA();
+  if (!A){ alert("Select a region (A)."); return; }
+  const units = Number(A.armies[pl.id]||0);
+  if (units <= 0){ alert("No units there to disband."); return; }
+
+  const nStr = await promptModal("Disband", `Disband how many units in ${A.name}? (1-${units})`, "1");
+  if (!nStr) return;
+  const n = Math.max(1, Math.min(units, Number(nStr)));
+
+  pushHistory();
+  A.armies[pl.id] = units - n;
+  game.ap -= 1;
+  log(`${pl.name} disbands ${n} unit(s) in ${A.name}. (AP-1)`);
+  renderAll();
+}
+
+
 /* --- 2D SVG Map rendering --- */
 
 function renderMap(){
@@ -1033,6 +1088,17 @@ function renderMap(){
   svg.innerHTML = "";
 
   if (!game || !game.started) return;
+
+  // Stylised UK silhouette for orientation (not to scale)
+  const uk = el("path", {
+    id: "ukSilhouette",
+    d: "M220,635 L185,610 L165,565 L150,520 L162,480 L190,450 L215,420 L235,390 L260,360 L290,330 L325,305 L360,275 L395,245 L430,220 L470,195 L515,170 L560,145 L610,120 L660,105 L705,105 L745,120 L775,145 L795,180 L805,220 L795,255 L775,290 L755,325 L735,360 L715,395 L695,430 L670,465 L640,495 L605,520 L560,540 L515,552 L470,565 L425,585 L385,605 L345,622 Z",
+    fill: "#0b0c10",
+    stroke: "#2a2e38",
+    "stroke-width": "3",
+    opacity: "0.95"
+  });
+  svg.appendChild(uk);
 
   const drawn = new Set();
   for (const [from, tos] of Object.entries(MAP)){
@@ -1139,6 +1205,23 @@ function renderPlayersPanel(){
   }
 }
 
+
+function renderTurnSummary(){
+  const el = $("turnSummary");
+  if (!el) return;
+  if (!game || !game.started){ el.textContent = "Start a game."; return; }
+  const out = [];
+  for (const s of (game.turnSummaries || [])){
+    out.push(`R${s.round} • ${s.who}`);
+    for (const ln of (s.lines || [])){
+      out.push("  " + ln.replace(/^\s+/, "").slice(0, 140));
+    }
+    out.push("");
+  }
+  el.textContent = out.join("\n").trim() || "No turns yet.";
+}
+
+
 function renderRegionDetail(){
   const elD = $("regionDetail");
   if (!game || !game.started){ elD.textContent = "Tap a region."; return; }
@@ -1180,6 +1263,7 @@ function renderTurnInfo(){
 function renderAll(){
   renderTurnInfo();
   renderPlayersPanel();
+  renderTurnSummary();
   renderMap();
   renderRegionDetail();
 
@@ -1188,8 +1272,12 @@ function renderAll(){
   const disable = (id, cond) => { $(id).disabled = !!cond; };
   const baseDisabled = (!game || !game.started || game.winner !== null);
 
-  ["actEvent","actIncome","actRecruit","actCallup","actMove","actAttack","actBuild","actPillage"]
-    .forEach(id => disable(id, baseDisabled || !isHuman));
+  ["actRecruit","actCallup","actMove","actAttack","actBuild","actPillage","actDisband"]
+  .forEach(id => disable(id, baseDisabled || !isHuman));
+
+// Events + income/upkeep run automatically at the start of every turn
+disable("actEvent", true);
+disable("actIncome", true);
 
   disable("btnEndTurn", baseDisabled || !isHuman);
   disable("btnUndo", baseDisabled);
@@ -1280,6 +1368,7 @@ $("actMove").addEventListener("click", humanMove);
 $("actAttack").addEventListener("click", humanAttack);
 $("actBuild").addEventListener("click", humanBuild);
 $("actPillage").addEventListener("click", humanPillage);
+$("actDisband").addEventListener("click", humanDisband);
 
 $("btnNew").addEventListener("click", ()=>{
   if (confirm("Start a new game?")){
@@ -1304,6 +1393,28 @@ $("btnLoad").addEventListener("click", ()=>{
   maybeRunAI();
 });
 $("btnHelp").addEventListener("click", ()=> $("help").showModal());
+
+$("btnEditMap").addEventListener("click", ()=>{
+  const dlg = $("mapEditor");
+  const box = $("mapEditorText");
+  const current = { MAP, NODE_POS };
+  box.value = JSON.stringify(current, null, 2);
+  dlg.showModal();
+});
+
+$("mapEditorSave").addEventListener("click", (e)=>{
+  try{
+    const raw = $("mapEditorText").value;
+    const obj = JSON.parse(raw);
+    if(!obj.MAP || !obj.NODE_POS) throw new Error("JSON must contain MAP and NODE_POS");
+    localStorage.setItem("britannia_map_override", JSON.stringify({ MAP: obj.MAP, NODE_POS: obj.NODE_POS }));
+    alert("Saved. Reloading…");
+    location.reload();
+  }catch(err){
+    e.preventDefault();
+    alert("Invalid JSON: " + err.message);
+  }
+});
 
 // service worker
 if ("serviceWorker" in navigator){
