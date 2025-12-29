@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Battle for Britannia</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0e0f12">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="title">
+      <div class="kicker">Battle for Britannia</div>
+      <div id="subtitle" class="subtitle">Single Player (AI Kingdoms)</div>
+    </div>
+    <div class="top-actions">
+      <button id="btnNew" class="btn">New Game</button>
+      <button id="btnSave" class="btn">Save</button>
+      <button id="btnLoad" class="btn">Load</button>
+      <button id="btnHelp" class="btn btnGhost">Help</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel left">
+      <div class="panelTitle">Setup</div>
+      <div class="card">
+        <div class="row">
+          <label>Total players</label>
+          <select id="playerCount">
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label>Your kingdom</label>
+          <select id="yourKingdom"></select>
+        </div>
+
+        <div class="row">
+          <label>Your name</label>
+          <input id="yourName" placeholder="Oli" value="Oli"/>
+        </div>
+
+        <div class="row">
+          <button id="btnStart" class="btn btnPrimary">Start Single Player Game</button>
+        </div>
+
+        <div class="muted small">
+          Tap a region to select it (A). Tap another to set target (B). AI will play its turns automatically.
+        </div>
+      </div>
+
+      <div class="panelTitle">Turn</div>
+      <div class="card">
+        <div id="turnInfo" class="turnInfo">Not started.</div>
+        <div class="turnRow">
+          <div class="pill">Round: <span id="roundNum">—</span></div>
+          <div class="pill">AP: <span id="apNum">—</span></div>
+        </div>
+
+        <div class="turnRow">
+          <button id="btnEndTurn" class="btn btnPrimary">End Turn</button>
+          <button id="btnUndo" class="btn btnGhost">Undo</button>
+        </div>
+      </div>
+
+      <div class="panelTitle">Actions (You only)</div>
+      <div class="card actionsGrid">
+        <button id="actEvent" class="btn">Resolve Event</button>
+        <button id="actIncome" class="btn">Income & Upkeep</button>
+        <button id="actRecruit" class="btn">Recruit Levy</button>
+        <button id="actCallup" class="btn">Call Up</button>
+        <button id="actMove" class="btn">Move Army</button>
+        <button id="actAttack" class="btn">Attack</button>
+        <button id="actBuild" class="btn">Build</button>
+        <button id="actPillage" class="btn">Pillage</button>
+      </div>
+
+      <div class="panelTitle">Log</div>
+      <div class="card log" id="log"></div>
+    </section>
+
+    <section class="panel center">
+      <div class="panelTitle">2D Map</div>
+      <div class="card">
+        <div class="hint small muted">Tap nodes. Lines show connections; numbers are AP costs.</div>
+        <div id="mapWrap" class="mapWrap">
+          <svg id="mapSvg" viewBox="0 0 1000 700" class="mapSvg" aria-label="Map"></svg>
+        </div>
+        <div class="small muted">
+          Selected: <span id="selA">—</span> → Target: <span id="selB">—</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel right">
+      <div class="panelTitle">Players</div>
+      <div id="playersPanel" class="playersPanel"></div>
+
+      <div class="panelTitle">Region Detail</div>
+      <div class="card" id="regionDetail">Tap a region.</div>
+    </section>
+  </main>
+
+  <dialog id="modal" class="modal">
+    <form method="dialog" class="modalInner">
+      <div id="modalTitle" class="modalTitle">Title</div>
+      <div id="modalBody" class="modalBody"></div>
+      <div class="modalActions">
+        <button id="modalCancel" class="btn btnGhost" value="cancel">Cancel</button>
+        <button id="modalOk" class="btn btnPrimary" value="ok">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="help" class="modal">
+    <form method="dialog" class="modalInner">
+      <div class="modalTitle">Help</div>
+      <div class="modalBody small">
+        <ul>
+          <li>You are the only human player. Other kingdoms take turns automatically.</li>
+          <li>Round 1 skips Events. After that, you can hit <b>Resolve Event</b> once per turn (AI does too).</li>
+          <li>Use <b>Income & Upkeep</b> at least once at the start of your turn (AI does this automatically).</li>
+          <li>Control: occupy uncontested for 1 full round. Capitals need 2; capture eliminates owner.</li>
+          <li>Isle of Man is transit-only: cannot be claimed or built on.</li>
+        </ul>
+      </div>
+      <div class="modalActions">
+        <button class="btn btnPrimary" value="ok">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
