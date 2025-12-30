@@ -2,146 +2,182 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Battle for Britannia</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="title">Battle for Britannia</div>
-      <div class="subtitle" id="subtitle">Single Player (AI Kingdoms)</div>
-    </div>
-    <div class="top-actions">
-      <button class="btn ghost" id="btnHelp">Help</button>
-      <button class="btn" id="btnNew">New</button>
-      <button class="btn" id="btnSave">Save</button>
-      <button class="btn" id="btnLoad">Load</button>
-    </div>
-  </header>
-
-  <main class="layout">
-    <section class="mapWrap">
-      <div class="hud">
-        <div class="hudRow">
-          <div class="pill" id="pillTurn">Round 1 • Your turn</div>
-          <div class="pill" id="pillAP">AP: 2</div>
+  <div id="app" class="app">
+    <!-- Setup Screen -->
+    <section id="screen-setup" class="screen screen-setup">
+      <header class="topbar">
+        <div class="brand">
+          <div class="title">Battle for Britannia</div>
+          <div class="subtitle">Single Player (AI Kingdoms)</div>
         </div>
-        <div class="hudRow">
-          <div class="res" id="resFood">🍞 2</div>
-          <div class="res" id="resSilver">💰 2</div>
-          <div class="res" id="resInf">👑 0</div>
-          <div class="res small" id="resUnits">⚔️ 0 active</div>
-        </div>
-      </div>
+        <button id="btn-help-setup" class="btn btn-ghost" type="button">Help</button>
+      </header>
 
-      <div class="mapViewport" id="mapViewport">
-        <div class="mapStage" id="mapStage" aria-label="Map">
-          <img class="mapBg" src="map_bg.png" alt="Board map" draggable="false" />
-          <svg class="overlay" id="overlay" viewBox="0 0 992 1536" preserveAspectRatio="xMidYMid meet"></svg>
-          <div class="tokens" id="tokens"></div>
-        </div>
-      </div>
+      <div class="card">
+        <div class="card-title">Setup</div>
 
-      <div class="mapControls">
-        <button class="btn ghost" id="zoomOut">−</button>
-        <button class="btn ghost" id="zoomIn">+</button>
-        <button class="btn ghost" id="zoomReset">Reset</button>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="card" id="setupCard">
-        <h2>Setup</h2>
-        <label class="row">
+        <label class="field">
           <span>Total players</span>
-          <select id="selPlayers">
-            <option value="2">2 (you + 1 AI)</option>
-            <option value="3" selected>3 (you + 2 AI)</option>
-            <option value="4">4 (you + 3 AI)</option>
-            <option value="5">5 (you + 4 AI)</option>
-          </select>
+          <select id="sel-total-players"></select>
         </label>
-        <label class="row">
+
+        <label class="field">
           <span>Your kingdom</span>
-          <select id="selKingdom">
-            <option>Wessex</option>
-            <option>Mercia</option>
-            <option>Northumbria</option>
-            <option>Wales</option>
-            <option>Picts</option>
-          </select>
+          <select id="sel-human-kingdom"></select>
         </label>
-        <label class="row">
+
+        <label class="field">
           <span>Your name</span>
-          <input id="inpName" placeholder="Name" value="Oli" />
+          <input id="inp-human-name" type="text" autocomplete="name" maxlength="24" />
         </label>
-        <button class="btn primary" id="btnStart">Start game</button>
-        <p class="hint">Tap a region to select it. Tap a friendly army token to select that army. Pan/zoom the map if needed.</p>
-      </div>
 
-      <div class="card hidden" id="turnCard">
-        <h2>Actions</h2>
-        <div class="context" id="contextLine">Select a region or army.</div>
-
-        <div class="actionGrid">
-          <button class="btn" id="btnMove">Move</button>
-          <button class="btn" id="btnAttack">Attack</button>
-          <button class="btn" id="btnRecruit">Recruit</button>
-          <button class="btn" id="btnCallup">Call up</button>
-          <button class="btn" id="btnBuild">Build</button>
-          <button class="btn" id="btnPillage">Pillage</button>
-          <button class="btn danger" id="btnDisband">Disband</button>
-          <button class="btn primary" id="btnEnd">End turn</button>
+        <div class="hint">
+          You will always play. The remaining kingdoms become AI.
         </div>
 
-        <div class="twoCols">
-          <div class="mini">
-            <h3>Selected</h3>
-            <div id="selectedInfo" class="mono">—</div>
-          </div>
-          <div class="mini">
-            <h3>AI summary</h3>
-            <div id="aiSummary" class="mono">—</div>
-          </div>
+        <button id="btn-start" class="btn btn-primary" type="button">Start Game</button>
+
+        <div class="tiny">
+          Tip: If the map/moves ever need to match your physical board perfectly, use <b>Map Editor</b> in-game.
         </div>
       </div>
 
-      <div class="card logCard hidden" id="logCard">
-        <div class="logHead">
-          <h2>Log</h2>
-          <button class="btn ghost" id="btnClearLog">Clear</button>
-        </div>
-        <div id="log" class="log"></div>
+      <div class="card">
+        <div class="card-title">Quick Controls</div>
+        <ul class="bullets">
+          <li><b>Pinch</b> to zoom, <b>drag</b> to pan.</li>
+          <li>Tap a region to open its <b>Region Card</b>.</li>
+          <li>Tap an army token to select it.</li>
+        </ul>
+      </div>
+
+      <div class="footer">
+        <button id="btn-load-setup" class="btn btn-ghost" type="button">Load Save</button>
+        <button id="btn-reset-cache" class="btn btn-ghost" type="button">Reset Cache</button>
       </div>
     </section>
-  </main>
 
-  <div class="sheet hidden" id="sheet">
-    <div class="sheetInner">
-      <div class="sheetHead">
-        <div class="sheetTitle" id="sheetTitle">Action</div>
-        <button class="btn ghost" id="sheetClose">Close</button>
+    <!-- Game Screen -->
+    <section id="screen-game" class="screen screen-game hidden">
+      <header class="topbar">
+        <div class="hud">
+          <div class="hud-row">
+            <div class="pill"><span id="hud-round">Round 1</span></div>
+            <div class="pill"><span id="hud-turn">Your Turn</span></div>
+            <div class="pill"><span id="hud-ap">AP 2</span></div>
+          </div>
+          <div class="hud-row">
+            <div class="pill res"><span class="ico">🍞</span><span id="hud-food">0</span></div>
+            <div class="pill res"><span class="ico">💰</span><span id="hud-silver">0</span></div>
+            <div class="pill res"><span class="ico">👑</span><span id="hud-infl">0</span></div>
+          </div>
+        </div>
+
+        <div class="top-actions">
+          <button id="btn-save" class="btn btn-ghost" type="button">Save</button>
+          <button id="btn-load" class="btn btn-ghost" type="button">Load</button>
+          <button id="btn-help" class="btn btn-ghost" type="button">Help</button>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="map-shell">
+          <div class="map-toolbar">
+            <button id="btn-zoom-out" class="btn btn-ghost" type="button">−</button>
+            <button id="btn-zoom-in" class="btn btn-ghost" type="button">＋</button>
+            <button id="btn-zoom-fit" class="btn btn-ghost" type="button">Fit</button>
+            <button id="btn-map-editor" class="btn btn-ghost" type="button">Map Editor</button>
+          </div>
+
+          <div id="mapViewport" class="map-viewport" aria-label="Game map">
+            <div id="mapStage" class="map-stage">
+              <img id="mapBg" class="map-bg" src="map_bg.png" alt="Board map" draggable="false" />
+              <svg id="mapSvg" class="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+          </div>
+
+          <div class="map-legend">
+            <div class="legend-item"><span class="dot dot-human"></span> You</div>
+            <div class="legend-item"><span class="dot dot-ai"></span> AI</div>
+            <div class="legend-item"><span class="dot dot-contested"></span> Contested</div>
+          </div>
+        </div>
+
+        <aside class="side">
+          <section class="panel" id="panel-region">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title" id="region-name">Select a region</div>
+                <div class="panel-sub" id="region-sub">Tap any region on the map.</div>
+              </div>
+              <button id="btn-close-region" class="btn btn-ghost" type="button">Close</button>
+            </div>
+
+            <div class="panel-body">
+              <div class="kvs">
+                <div class="kv"><span>Owner</span><b id="region-owner">—</b></div>
+                <div class="kv"><span>Terrain</span><b id="region-terrain">—</b></div>
+                <div class="kv"><span>Levies</span><b id="region-levies">—</b></div>
+              </div>
+
+              <div class="slots">
+                <div class="slots-title">Buildings</div>
+                <div id="building-slots" class="slot-row"></div>
+                <div class="tiny">Buildings show up on the map as icons.</div>
+              </div>
+
+              <div class="actions-grid">
+                <button id="btn-build" class="btn btn-secondary" type="button">Build</button>
+                <button id="btn-recruit" class="btn btn-secondary" type="button">Recruit Levy</button>
+                <button id="btn-callup" class="btn btn-secondary" type="button">Call Up (Capital)</button>
+                <button id="btn-pillage" class="btn btn-secondary" type="button">Pillage</button>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="actions-grid">
+                <button id="btn-move" class="btn btn-secondary" type="button">Move</button>
+                <button id="btn-attack" class="btn btn-secondary" type="button">Attack</button>
+                <button id="btn-disband" class="btn btn-secondary" type="button">Disband</button>
+                <button id="btn-endturn" class="btn btn-primary" type="button">End Turn</button>
+              </div>
+
+              <div class="tiny" id="context-hint">Select an army token to enable Move/Attack/Disband.</div>
+            </div>
+          </section>
+
+          <section class="panel" id="panel-summary">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title">Turn Summary</div>
+                <div class="panel-sub">Clear breakdown of what just happened.</div>
+              </div>
+              <button id="btn-clear-summary" class="btn btn-ghost" type="button">Clear</button>
+            </div>
+            <div id="summary-body" class="panel-body log"></div>
+          </section>
+        </aside>
+      </main>
+
+      <div id="toast" class="toast hidden"></div>
+
+      <!-- Modal -->
+      <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-card">
+          <div class="modal-title" id="modal-title">Title</div>
+          <div class="modal-body" id="modal-body"></div>
+          <div class="modal-actions" id="modal-actions"></div>
+        </div>
       </div>
-      <div class="sheetBody" id="sheetBody"></div>
-      <div class="sheetFoot" id="sheetFoot"></div>
-    </div>
-  </div>
-
-  <div class="modal hidden" id="modal">
-    <div class="modalInner">
-      <h2 id="modalTitle">Modal</h2>
-      <div id="modalBody" class="modalBody"></div>
-      <div class="modalFoot" id="modalFoot"></div>
-    </div>
+    </section>
   </div>
 
   <script src="app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
-    }
-  </script>
 </body>
 </html>
