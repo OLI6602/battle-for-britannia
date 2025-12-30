@@ -234,6 +234,10 @@
       this.phase = 'setup';
       this.log = [];
       this.turnSummary = [];
+      this.lastIncome = {};
+      this.lastUpkeep = {};
+      this.lastEvent = {};
+
       this.selected = { regionId:null, armyId:null, mode:null };
       this.control = {}; // regionId -> playerId | null
       this.buildings = {}; // regionId -> array of types
@@ -345,6 +349,7 @@
       lines.push(`Turn begins: ${p.name} (Round ${this.round}).`);
 
       const doEvent = this.round >= this.config.eventsStartRound;
+      let evRecord = null;
       if(doEvent){
         let nextEvent = null;
         if(this.peekNextEventFor === p.id && this._eventQueue.length){
@@ -357,12 +362,15 @@
         if(this.peekNextEventFor === p.id){
           this.peekNextEventFor = null;
           lines.push(`Event (peeked): ${ev.name} — ${ev.text}`);
+          evRecord = { name: ev.name, text: ev.text, peeked: true };
         } else {
           lines.push(`Event: ${ev.name} — ${ev.text}`);
+        evRecord = { name: ev.name, text: ev.text };
         }
         try { ev.apply(this, p); } catch(e){ console.warn(e); }
       } else {
         lines.push('Event: (skipped).');
+        evRecord = { name: '(skipped)', text: '' };
       }
 
       // Income + upkeep
@@ -371,6 +379,12 @@
       const upkeep = this._upkeep(p);
       if(upkeep.paid>0) lines.push(`Upkeep: -${upkeep.paid} Food for active units.`);
       if(upkeep.forcedDisband>0) lines.push(`Forced Disband: removed ${upkeep.forcedDisband} unit(s) due to low Food.`);
+
+      // Record for UI (last start-of-turn effects)
+      this.lastEvent[p.id] = evRecord;
+      this.lastIncome[p.id] = inc;
+      this.lastUpkeep[p.id] = upkeep;
+
 
       this.ap = 2;
       this.phase = 'action';
@@ -1505,6 +1519,8 @@
       const humanCoreOwned = human.core.filter(rid=> game.controlOf(rid)===human.id).length;
       const winText = `Win: 👑 ${human.influence}/${infTarget} • 🗺️ ${human.regions.size}/${4+extra} (core ${humanCoreOwned}/4)`;
 
+      const li = (game.lastIncome && game.lastIncome[human.id]) ? game.lastIncome[human.id] : {food:0,silver:0,influence:0};
+
       app.innerHTML = `
         <div class="game">
           <div class="hud">
@@ -1514,8 +1530,9 @@
                 <span class="pill">🍞 ${human.food}</span>
                 <span class="pill">💰 ${human.silver}</span>
                 <span class="pill">👑 ${human.influence}</span>
-                <span class="pill">${escapeHTML(winText)}</span>
+                <span class="pill">Income: 🍞+${li.food} 💰+${li.silver} 👑+${li.influence}</span>
               </div>
+              <div class="sub hudWin">${escapeHTML(winText)}</div>
               <div class="phaseInfo" id="phaseInfo"></div>
             </div>
             <div class="right">
@@ -1531,6 +1548,18 @@
               <div class="fab" id="zoomIn">+</div>
               <div class="fab" id="zoomOut">−</div>
               <div class="fab" id="fit">⤢</div>
+
+              <div class="dpad" aria-label="Pan controls">
+                <button class="fab" id="panUp" aria-label="Pan up">▲</button>
+                <div></div>
+                <button class="fab" id="panRight" aria-label="Pan right">▶</button>
+                <button class="fab" id="panLeft" aria-label="Pan left">◀</button>
+                <button class="fab" id="panCenter" aria-label="Center map">◎</button>
+                <div></div>
+                <button class="fab" id="panDown" aria-label="Pan down">▼</button>
+                <div></div>
+                <div></div>
+              </div>
             </div>
 
             <svg id="mapSvg" viewBox="0 0 ${MAP.viewBox.w} ${MAP.viewBox.h}" preserveAspectRatio="xMidYMid meet" aria-label="Map">
@@ -1555,31 +1584,6 @@
               </g>
             </svg>
 
-            <div class="sheet" id="sheet">
-              <div class="inner">
-                <div class="head">
-                  <div>
-                    <div class="name" id="sheetName">Region</div>
-                    <div class="subline" id="sheetSub">Tap a region to view details.</div>
-                  </div>
-                  <button class="btn ghost close" id="sheetClose">✕</button>
-                </div>
-
-                <div class="kv">
-                  <div class="box"><div class="label">Owner</div><div class="value" id="sheetOwner">—</div></div>
-                  <div class="box"><div class="label">Terrain</div><div class="value" id="sheetTerrain">—</div></div>
-                  <div class="box"><div class="label">Levies (stored)</div><div class="value" id="sheetLevies">—</div></div>
-                  <div class="box"><div class="label">Buildings</div><div class="value" id="sheetBuildCount">—</div></div>
-                </div>
-
-                <div class="icons" id="sheetIcons"></div>
-
-                <div class="armiesList" id="sheetArmies"></div>
-
-                <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end" id="sheetActions"></div>
-              </div>
-            </div>
-
             <div class="modal" id="modal">
               <div class="panel">
                 <div class="mhead">
@@ -1591,6 +1595,31 @@
               </div>
             </div>
           </div>
+
+          <div class="detailPanel collapsed" id="detailPanel">
+            <div class="detailHead">
+              <div>
+                <div class="detailTitle" id="sheetName">Region</div>
+                <div class="detailSub" id="sheetSub">Tap a region to view details.</div>
+              </div>
+              <button class="btn small ghost" id="detailToggle">Show</button>
+            </div>
+            <div class="detailBody" id="sheetBody">
+              <div class="kv">
+                <div class="box"><div class="label">Owner</div><div class="value" id="sheetOwner">—</div></div>
+                <div class="box"><div class="label">Terrain</div><div class="value" id="sheetTerrain">—</div></div>
+                <div class="box"><div class="label">Levies (stored)</div><div class="value" id="sheetLevies">—</div></div>
+                <div class="box"><div class="label">Buildings</div><div class="value" id="sheetBuildCount">—</div></div>
+              </div>
+
+              <div class="icons" id="sheetIcons"></div>
+
+              <div class="armiesList" id="sheetArmies"></div>
+
+              <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end" id="sheetActions"></div>
+            </div>
+          </div>
+
 
           <div class="activityDock" id="activityDock">
             <div class="activityHead">
@@ -1623,8 +1652,19 @@
       $('#zoomOut').addEventListener('click', ()=> panzoom.zoomBy(0.87));
       $('#fit').addEventListener('click', ()=> panzoom.fit());
 
+      const nudge = (dx,dy)=> panzoom.nudge(dx,dy);
+      $('#panUp').addEventListener('click', ()=> nudge(0, 120));
+      $('#panDown').addEventListener('click', ()=> nudge(0, -120));
+      $('#panLeft').addEventListener('click', ()=> nudge(120, 0));
+      $('#panRight').addEventListener('click', ()=> nudge(-120, 0));
+      $('#panCenter').addEventListener('click', ()=> panzoom.fit());
+
       // UI buttons
-      $('#sheetClose').addEventListener('click', ()=> closeSheet());
+      $('#detailToggle').addEventListener('click', ()=> {
+        const dp = $('#detailPanel');
+        dp.classList.toggle('collapsed');
+        $('#detailToggle').textContent = dp.classList.contains('collapsed') ? 'Show' : 'Hide';
+      });
       $('#endTurnBtn').addEventListener('click', ()=> game.endTurn());
       $('#moveBtn').addEventListener('click', ()=> {
         if(!game.canActHuman()) return;
@@ -1828,8 +1868,10 @@
     }
 
     function closeSheet(){
-      const sh = $('#sheet');
-      sh.classList.remove('open');
+      const dp = $('#detailPanel');
+      if(dp) dp.classList.add('collapsed');
+      const tg = $('#detailToggle');
+      if(tg) tg.textContent = 'Show';
     }
     function openSheet(regionId){
       const r = REGION_BY_ID[regionId];
@@ -1928,7 +1970,10 @@
         });
       },0);
 
-      $('#sheet').classList.add('open');
+      const dp = $('#detailPanel');
+      if(dp) dp.classList.remove('collapsed');
+      const tg = $('#detailToggle');
+      if(tg) tg.textContent = 'Hide';
       render();
     }
 
@@ -2339,7 +2384,16 @@
 
     _apply(){
       // Translate is in screen px, but applied to SVG group; ok as relative.
-      this.g.setAttribute('transform', `translate(${this.state.tx} ${this.state.ty}) scale(${this.state.scale})`);
+      const s=this.state.scale;
+      const tx=this.state.tx/Math.max(0.001,s);
+      const ty=this.state.ty/Math.max(0.001,s);
+      this.g.setAttribute('transform', `translate(${tx} ${ty}) scale(${s})`);
+    }
+
+    nudge(dx,dy){
+      this.state.tx += dx;
+      this.state.ty += dy;
+      this._apply();
     }
 
     zoomBy(factor){
@@ -2349,9 +2403,9 @@
 
     fit(){
       // Reset to a sensible default: show all content, slightly zoomed out.
-      this.state.scale = 0.72;
+      this.state.scale = 0.68;
       this.state.tx = 0;
-      this.state.ty = -80;
+      this.state.ty = -140;
       this._apply();
     }
   }
