@@ -1,46 +1,35 @@
-
-const CACHE = "bfb-cache-v5-2025-12-30-1";
+/* Battle for Britannia v6 service worker */
+const CACHE = 'bfb-v6-2025-12-30';
 const ASSETS = [
-  "./",
-  "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./manifest.webmanifest",
-  "./map_bg.png",
-  "./icon-192.png",
-  "./icon-512.png",
+  './',
+  './index.html',
+  './styles.css',
+  './app.js',
+  './manifest.webmanifest',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
-self.addEventListener("install", (event) => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(CACHE);
-    await cache.addAll(ASSETS);
-    self.skipWaiting();
-  })());
+self.addEventListener('install', (e)=>{
+  e.waitUntil(
+    caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=> self.skipWaiting())
+  );
 });
 
-self.addEventListener("activate", (event) => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.map(k => (k !== CACHE) ? caches.delete(k) : Promise.resolve()));
-    self.clients.claim();
-  })());
+self.addEventListener('activate', (e)=>{
+  e.waitUntil(
+    caches.keys().then(keys=> Promise.all(keys.map(k=> (k===CACHE)?null:caches.delete(k)))).then(()=> self.clients.claim())
+  );
 });
 
-self.addEventListener("fetch", (event) => {
-  const req = event.request;
-  event.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const cached = await cache.match(req, { ignoreSearch:true });
-    if (cached) return cached;
-    try{
-      const res = await fetch(req);
-      if (req.method === "GET" && res && res.status === 200) {
-        cache.put(req, res.clone());
-      }
+self.addEventListener('fetch', (e)=>{
+  const req = e.request;
+  if(req.method !== 'GET') return;
+  e.respondWith(
+    caches.match(req).then(cached => cached || fetch(req).then(res=>{
+      const copy = res.clone();
+      caches.open(CACHE).then(c=> c.put(req, copy)).catch(()=>{});
       return res;
-    }catch(e){
-      return cached || Response.error();
-    }
-  })());
+    }).catch(()=> cached))
+  );
 });
