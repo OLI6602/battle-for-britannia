@@ -1520,6 +1520,7 @@
             </div>
             <div class="right">
               <button class="btn small ghost" id="scoreBtn">Score</button>
+              <button class="btn small ghost" id="resetBtn">Reset</button>
               <button class="btn small ghost" id="logBtn">AI Summary</button>
               <button class="btn small ghost" id="helpBtn">Help</button>
             </div>
@@ -1539,7 +1540,8 @@
                 </filter>
               </defs>
               <g id="panzoom">
-                <image href="map_bg.png" x="0" y="0" width="${MAP.viewBox.w}" height="${MAP.viewBox.h}" opacity="0.23" preserveAspectRatio="xMidYMid meet" />
+                <rect x="0" y="0" width="${MAP.viewBox.w}" height="${MAP.viewBox.h}" fill="rgba(2,30,50,0.92)" />
+                <image href="map_bg.png" x="0" y="0" width="${MAP.viewBox.w}" height="${MAP.viewBox.h}" opacity="0.10" preserveAspectRatio="xMidYMid meet" />
                 <!-- connections -->
                 <g id="connections"></g>
                 <!-- regions -->
@@ -1552,11 +1554,6 @@
                 <g id="labels"></g>
               </g>
             </svg>
-
-            <div class="feedPanel" id="feedPanel">
-              <div class="feedHead">Activity</div>
-              <div class="feedBody" id="feedBody"></div>
-            </div>
 
             <div class="sheet" id="sheet">
               <div class="inner">
@@ -1577,6 +1574,8 @@
 
                 <div class="icons" id="sheetIcons"></div>
 
+                <div class="armiesList" id="sheetArmies"></div>
+
                 <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end" id="sheetActions"></div>
               </div>
             </div>
@@ -1591,6 +1590,14 @@
                 <div class="mfooter" id="modalFooter"></div>
               </div>
             </div>
+          </div>
+
+          <div class="activityDock" id="activityDock">
+            <div class="activityHead">
+              <div style="font-weight:900">Activity</div>
+              <button class="btn small ghost" id="activityToggle">Hide</button>
+            </div>
+            <div class="activityBody" id="feedBody"></div>
           </div>
 
           <div class="bottomBar">
@@ -1638,6 +1645,23 @@
         openDisbandDialog(a.id);
       });
       $('#callUpBtn').addEventListener('click', ()=> openCallUpDialog());
+
+      $('#resetBtn').addEventListener('click', ()=> {
+        UI.openModal('Reset game?', `<div class="sub">This will end the current game and return to setup.</div>`, [
+          { text:'Cancel', kind:'ghost', onClick:()=> UI.closeModal() },
+          { text:'Reset', kind:'danger', onClick:()=> { UI.closeModal(); UI.restart(); } },
+        ]);
+      });
+
+      // Activity dock toggle
+      const dock = $('#activityDock');
+      const toggle = $('#activityToggle');
+      if(toggle && dock){
+        toggle.addEventListener('click', ()=>{
+          dock.classList.toggle('collapsed');
+          toggle.textContent = dock.classList.contains('collapsed') ? 'Show' : 'Hide';
+        });
+      }
 
       $('#scoreBtn').addEventListener('click', ()=> openScore());
       $('#logBtn').addEventListener('click', ()=> openSummary());
@@ -1832,8 +1856,25 @@
       if(game.captureTimers[regionId]) icons.push(`<span class="iconSlot"><span class="mini">⏳</span> Capture: ${game.captureTimers[regionId].remainingTurns} turn(s)</span>`);
       $('#sheetIcons').innerHTML = icons.join('') || `<span class="iconSlot"><span class="mini">ℹ️</span> Tap your army token to select it</span>`;
 
-      // Actions based on state
+      // Armies in this region (reliable selection when tokens overlap)
+      const armiesHere = game.armies.filter(a=>a.regionId===regionId);
       const human = game.players.find(p=>p.isHuman);
+      const rows = armiesHere.map(a=>{
+        const owner = game.getPlayer(a.ownerId);
+        const isMine = human && a.ownerId===human.id;
+        const sel = (game.selected.armyId===a.id);
+        const btn = isMine ? `<button class="btn small" data-select-army="${a.id}">${sel?'Selected':'Select'}</button>` : '';
+        return `<div class="armyRow">
+          <div class="armyDot" style="background:${game.colorOf(a.ownerId)}"></div>
+          <div class="armyMeta"><b>${escapeHTML(owner?.name||'Unknown')}</b><div class="sub">Units: ${a.units}</div></div>
+          <div>${btn}</div>
+        </div>`;
+      }).join('');
+      $('#sheetArmies').innerHTML = armiesHere.length
+        ? `<div class="sub" style="margin:8px 0 6px">Armies here</div>${rows}`
+        : `<div class="sub" style="margin-top:8px">No armies in this region.</div>`;
+
+      // Actions based on state
       const isHumanTurn = game.canActHuman();
       const actions = [];
       if(isHumanTurn){
@@ -1873,6 +1914,18 @@
         });
         const build = act('build');
         if(build) build.addEventListener('click', ()=> openBuildDialog(regionId));
+
+        // army selects
+        $$('#sheetArmies [data-select-army]').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            const aid = btn.getAttribute('data-select-army');
+            game.selected.armyId = aid;
+            game.selected.regionId = regionId;
+            game.selected.mode = null;
+            openSheet(regionId);
+            render();
+          });
+        });
       },0);
 
       $('#sheet').classList.add('open');
@@ -2091,7 +2144,8 @@
         const owner = game.controlOf(rid);
         const isTransit = game.isTransit(rid);
         const playable = game.isPlayable(rid);
-        const base = isTransit ? 'rgba(148,163,184,0.16)' : (playable ? 'rgba(30,41,59,0.65)' : 'rgba(2,6,23,0.85)');
+        // Base map colours: water is handled by the background rect; land defaults to green.
+        const base = isTransit ? 'rgba(148,163,184,0.16)' : (playable ? 'rgba(34,197,94,0.22)' : 'rgba(2,6,23,0.88)');
         let fill = base;
         if(!playable){
           poly.setAttribute('fill', fill);
@@ -2230,7 +2284,8 @@
     }
 
     _onDown(e){
-      this.svg.setPointerCapture(e.pointerId);
+      // IMPORTANT: don't pointer-capture, otherwise region/army taps stop firing on mobile.
+      // We still track pointers to support drag/pinch, but taps will be handled by the region/army listeners.
       this._pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
       if(this._pointers.size===1){
         this.dragging = false;
@@ -2251,7 +2306,8 @@
         const dx = p1.x - this._start.p1.x;
         const dy = p1.y - this._start.p1.y;
         this._dragMoved = Math.max(this._dragMoved, Math.hypot(dx,dy));
-        if(this._dragMoved > 6) this.dragging = true;
+        // Higher threshold so normal taps don't get mis-classified as drags.
+        if(this._dragMoved > 12) this.dragging = true;
         this.state.tx = this._start.tx + dx;
         this.state.ty = this._start.ty + dy;
         this._apply();
