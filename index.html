@@ -1,1 +1,147 @@
-<!doctype html><html><head><meta charset='utf-8'><title>Battle for Britannia v4</title></head><body><h1>Battle for Britannia v4</h1><p>Zip regenerated successfully.</p></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Battle for Britannia</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="title">Battle for Britannia</div>
+      <div class="subtitle" id="subtitle">Single Player (AI Kingdoms)</div>
+    </div>
+    <div class="top-actions">
+      <button class="btn ghost" id="btnHelp">Help</button>
+      <button class="btn" id="btnNew">New</button>
+      <button class="btn" id="btnSave">Save</button>
+      <button class="btn" id="btnLoad">Load</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="mapWrap">
+      <div class="hud">
+        <div class="hudRow">
+          <div class="pill" id="pillTurn">Round 1 • Your turn</div>
+          <div class="pill" id="pillAP">AP: 2</div>
+        </div>
+        <div class="hudRow">
+          <div class="res" id="resFood">🍞 2</div>
+          <div class="res" id="resSilver">💰 2</div>
+          <div class="res" id="resInf">👑 0</div>
+          <div class="res small" id="resUnits">⚔️ 0 active</div>
+        </div>
+      </div>
+
+      <div class="mapViewport" id="mapViewport">
+        <div class="mapStage" id="mapStage" aria-label="Map">
+          <img class="mapBg" src="map_bg.png" alt="Board map" draggable="false" />
+          <svg class="overlay" id="overlay" viewBox="0 0 992 1536" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="tokens" id="tokens"></div>
+        </div>
+      </div>
+
+      <div class="mapControls">
+        <button class="btn ghost" id="zoomOut">−</button>
+        <button class="btn ghost" id="zoomIn">+</button>
+        <button class="btn ghost" id="zoomReset">Reset</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="card" id="setupCard">
+        <h2>Setup</h2>
+        <label class="row">
+          <span>Total players</span>
+          <select id="selPlayers">
+            <option value="2">2 (you + 1 AI)</option>
+            <option value="3" selected>3 (you + 2 AI)</option>
+            <option value="4">4 (you + 3 AI)</option>
+            <option value="5">5 (you + 4 AI)</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>Your kingdom</span>
+          <select id="selKingdom">
+            <option>Wessex</option>
+            <option>Mercia</option>
+            <option>Northumbria</option>
+            <option>Wales</option>
+            <option>Picts</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>Your name</span>
+          <input id="inpName" placeholder="Name" value="Oli" />
+        </label>
+        <button class="btn primary" id="btnStart">Start game</button>
+        <p class="hint">Tap a region to select it. Tap a friendly army token to select that army. Pan/zoom the map if needed.</p>
+      </div>
+
+      <div class="card hidden" id="turnCard">
+        <h2>Actions</h2>
+        <div class="context" id="contextLine">Select a region or army.</div>
+
+        <div class="actionGrid">
+          <button class="btn" id="btnMove">Move</button>
+          <button class="btn" id="btnAttack">Attack</button>
+          <button class="btn" id="btnRecruit">Recruit</button>
+          <button class="btn" id="btnCallup">Call up</button>
+          <button class="btn" id="btnBuild">Build</button>
+          <button class="btn" id="btnPillage">Pillage</button>
+          <button class="btn danger" id="btnDisband">Disband</button>
+          <button class="btn primary" id="btnEnd">End turn</button>
+        </div>
+
+        <div class="twoCols">
+          <div class="mini">
+            <h3>Selected</h3>
+            <div id="selectedInfo" class="mono">—</div>
+          </div>
+          <div class="mini">
+            <h3>AI summary</h3>
+            <div id="aiSummary" class="mono">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card logCard hidden" id="logCard">
+        <div class="logHead">
+          <h2>Log</h2>
+          <button class="btn ghost" id="btnClearLog">Clear</button>
+        </div>
+        <div id="log" class="log"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="sheet hidden" id="sheet">
+    <div class="sheetInner">
+      <div class="sheetHead">
+        <div class="sheetTitle" id="sheetTitle">Action</div>
+        <button class="btn ghost" id="sheetClose">Close</button>
+      </div>
+      <div class="sheetBody" id="sheetBody"></div>
+      <div class="sheetFoot" id="sheetFoot"></div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="modal">
+    <div class="modalInner">
+      <h2 id="modalTitle">Modal</h2>
+      <div id="modalBody" class="modalBody"></div>
+      <div class="modalFoot" id="modalFoot"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    }
+  </script>
+</body>
+</html>
