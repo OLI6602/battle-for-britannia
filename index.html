@@ -28,6 +28,11 @@
         </label>
 
         <label class="field">
+          <span>AI style</span>
+          <select id="sel-ai-style"></select>
+        </label>
+
+        <label class="field">
           <span>Your kingdom</span>
           <select id="sel-human-kingdom"></select>
         </label>
@@ -77,11 +82,15 @@
             <div class="pill res"><span class="ico">💰</span><span id="hud-silver">0</span></div>
             <div class="pill res"><span class="ico">👑</span><span id="hud-infl">0</span></div>
           </div>
+          <div class="hud-row hud-victory">
+            <div class="pill wide"><span id="hud-victory">Win: 👑 0/18 • 🗺️ 0/6 (core 0/4)</span></div>
+          </div>
         </div>
 
         <div class="top-actions">
           <button id="btn-save" class="btn btn-ghost" type="button">Save</button>
           <button id="btn-load" class="btn btn-ghost" type="button">Load</button>
+          <button id="btn-score" class="btn btn-ghost" type="button">Score</button>
           <button id="btn-help" class="btn btn-ghost" type="button">Help</button>
         </div>
       </header>

@@ -1,5 +1,5 @@
 
-const CACHE = "bfb-cache-v4-2025-12-30-1";
+const CACHE = "bfb-cache-v5-2025-12-30-1";
 const ASSETS = [
   "./",
   "./index.html",

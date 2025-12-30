@@ -1,11 +1,11 @@
 
-/* Battle for Britannia (mobile-first) — v4
+/* Battle for Britannia (mobile-first) — v5
    Notes:
    - This build prioritizes playability: Setup -> Game, map pan/zoom, visible armies, region cards.
    - The exact board graph can be updated via Map Editor (paste JSON).
 */
 (() => {
-  const VERSION = "bfb-v4-2025-12-30-1";
+  const VERSION = "bfb-v5-2025-12-30-1";
   const $ = (sel) => document.querySelector(sel);
 
   // ---------- Data ----------
@@ -28,44 +28,44 @@
   // Default map (editable). Coordinates match map_bg.png base width 1100.
   // IMPORTANT: This is a starter layout. Use Map Editor to match your physical board exactly.
   const DEFAULT_MAP = {
-    width: 1100,
-    height: 800,
+    width: 2736,
+    height: 4176,
     nodes: [
       // South / Wessex
-      { id:"Winchester", label:"Winchester", x:250, y:650, kingdom:"wessex", capital:true, terrain:"plains" },
-      { id:"Kent", label:"Kent", x:350, y:690, kingdom:"wessex", capital:false, terrain:"coast" },
-      { id:"Sussex", label:"Sussex", x:300, y:720, kingdom:"wessex", capital:false, terrain:"coast" },
-      { id:"Essex", label:"Essex", x:420, y:640, kingdom:"wessex", capital:false, terrain:"plains" },
+      { id:"Winchester", label:"Winchester", x:622, y:3393, kingdom:"wessex", capital:true, terrain:"plains" },
+      { id:"Kent", label:"Kent", x:871, y:3602, kingdom:"wessex", capital:false, terrain:"coast" },
+      { id:"Sussex", label:"Sussex", x:746, y:3758, kingdom:"wessex", capital:false, terrain:"coast" },
+      { id:"Essex", label:"Essex", x:1045, y:3341, kingdom:"wessex", capital:false, terrain:"plains" },
 
       // East / Anglia
-      { id:"East Anglia", label:"East Anglia", x:520, y:600, kingdom:null, capital:false, terrain:"plains" },
+      { id:"East Anglia", label:"East Anglia", x:1293, y:3132, kingdom:null, capital:false, terrain:"plains" },
 
       // Mercia core
-      { id:"Tamworth", label:"Tamworth", x:390, y:540, kingdom:"mercia", capital:true, terrain:"plains" },
-      { id:"Hwicce", label:"Hwicce", x:300, y:560, kingdom:"mercia", capital:false, terrain:"hills" },
-      { id:"Cheshire", label:"Cheshire", x:250, y:500, kingdom:"mercia", capital:false, terrain:"plains" },
-      { id:"Lindsey", label:"Lindsey", x:460, y:500, kingdom:"mercia", capital:false, terrain:"plains" },
+      { id:"Tamworth", label:"Tamworth", x:970, y:2819, kingdom:"mercia", capital:true, terrain:"plains" },
+      { id:"Hwicce", label:"Hwicce", x:746, y:2923, kingdom:"mercia", capital:false, terrain:"hills" },
+      { id:"Cheshire", label:"Cheshire", x:622, y:2610, kingdom:"mercia", capital:false, terrain:"plains" },
+      { id:"Lindsey", label:"Lindsey", x:1144, y:2610, kingdom:"mercia", capital:false, terrain:"plains" },
 
       // North
-      { id:"Tynedale", label:"Tynedale", x:420, y:360, kingdom:"northumbria", capital:false, terrain:"hills" },
-      { id:"Deira", label:"Deira", x:470, y:410, kingdom:"northumbria", capital:false, terrain:"plains" },
-      { id:"Bernicia", label:"Bernicia", x:500, y:330, kingdom:"northumbria", capital:true, terrain:"hills" },
-      { id:"Cumbria", label:"Cumbria", x:330, y:360, kingdom:"northumbria", capital:false, terrain:"mountains" },
+      { id:"Tynedale", label:"Tynedale", x:1045, y:1879, kingdom:"northumbria", capital:false, terrain:"hills" },
+      { id:"Deira", label:"Deira", x:1169, y:2140, kingdom:"northumbria", capital:false, terrain:"plains" },
+      { id:"Bernicia", label:"Bernicia", x:1244, y:1723, kingdom:"northumbria", capital:true, terrain:"hills" },
+      { id:"Cumbria", label:"Cumbria", x:821, y:1879, kingdom:"northumbria", capital:false, terrain:"mountains" },
 
       // Wales
-      { id:"Gwynedd", label:"Gwynedd", x:180, y:460, kingdom:"wales", capital:true, terrain:"mountains" },
-      { id:"Powys", label:"Powys", x:220, y:520, kingdom:"wales", capital:false, terrain:"hills" },
-      { id:"Dyfed", label:"Dyfed", x:120, y:560, kingdom:"wales", capital:false, terrain:"coast" },
-      { id:"Gwent", label:"Gwent", x:180, y:600, kingdom:"wales", capital:false, terrain:"hills" },
+      { id:"Gwynedd", label:"Gwynedd", x:448, y:2401, kingdom:"wales", capital:true, terrain:"mountains" },
+      { id:"Powys", label:"Powys", x:547, y:2714, kingdom:"wales", capital:false, terrain:"hills" },
+      { id:"Dyfed", label:"Dyfed", x:298, y:2923, kingdom:"wales", capital:false, terrain:"coast" },
+      { id:"Gwent", label:"Gwent", x:448, y:3132, kingdom:"wales", capital:false, terrain:"hills" },
 
       // Scotland / Picts
-      { id:"Lothian", label:"Lothian", x:560, y:260, kingdom:"picts", capital:false, terrain:"hills" },
-      { id:"Fortriu", label:"Fortriu", x:520, y:170, kingdom:"picts", capital:false, terrain:"mountains" },
-      { id:"Strathmore", label:"Strathmore", x:450, y:190, kingdom:"picts", capital:false, terrain:"mountains" },
-      { id:"Scone", label:"Scone", x:490, y:220, kingdom:"picts", capital:true, terrain:"hills" },
+      { id:"Lothian", label:"Lothian", x:1393, y:1357, kingdom:"picts", capital:false, terrain:"hills" },
+      { id:"Fortriu", label:"Fortriu", x:1293, y:887, kingdom:"picts", capital:false, terrain:"mountains" },
+      { id:"Strathmore", label:"Strathmore", x:1119, y:992, kingdom:"picts", capital:false, terrain:"mountains" },
+      { id:"Scone", label:"Scone", x:1219, y:1148, kingdom:"picts", capital:true, terrain:"hills" },
 
       // Isle of Man (transit only)
-      { id:"Isle of Man", label:"Isle of Man", x:270, y:410, kingdom:null, capital:false, terrain:"coast", transitOnly:true },
+      { id:"Isle of Man", label:"Isle of Man", x:672, y:2140, kingdom:null, capital:false, terrain:"coast", transitOnly:true },
     ],
     edges: [
       // Wessex cluster
@@ -154,6 +154,7 @@
 
   const selTotalPlayers = $("#sel-total-players");
   const selHumanKingdom = $("#sel-human-kingdom");
+  const selAiStyle = $("#sel-ai-style");
   const inpHumanName = $("#inp-human-name");
 
   const btnStart = $("#btn-start");
@@ -161,6 +162,7 @@
   const btnLoad = $("#btn-load");
   const btnLoadSetup = $("#btn-load-setup");
   const btnHelp = $("#btn-help");
+  const btnScore = $("#btn-score");
   const btnHelpSetup = $("#btn-help-setup");
 
   const btnResetCache = $("#btn-reset-cache");
@@ -171,6 +173,7 @@
   const hudFood = $("#hud-food");
   const hudSilver = $("#hud-silver");
   const hudInfl = $("#hud-infl");
+  const hudVictory = $("#hud-victory");
 
   const mapViewport = $("#mapViewport");
   const mapStage = $("#mapStage");
@@ -227,6 +230,16 @@
       selHumanKingdom.appendChild(opt);
     });
     selHumanKingdom.value = "wessex";
+    if(selAiStyle){
+      selAiStyle.innerHTML="";
+      [
+        {v:"balanced", t:"Balanced (default)"},
+        {v:"aggressive", t:"Aggressive"},
+        {v:"defensive", t:"Defensive"}
+      ].forEach(o=>{ const opt=document.createElement("option"); opt.value=o.v; opt.textContent=o.t; selAiStyle.appendChild(opt); });
+      selAiStyle.value = localStorage.getItem("bfb_ai_style") || "balanced";
+    }
+
     inpHumanName.value = localStorage.getItem("bfb_human_name") || "Oli";
   }
 
@@ -509,8 +522,10 @@
     const totalPlayers = parseInt(selTotalPlayers.value,10);
     const humanKingdomId = selHumanKingdom.value;
     const humanName = (inpHumanName.value || "Player").trim().slice(0,24);
+    const aiStyle = (selAiStyle && selAiStyle.value) ? selAiStyle.value : "balanced";
 
     localStorage.setItem("bfb_human_name", humanName);
+    if(selAiStyle) localStorage.setItem("bfb_ai_style", aiStyle);
 
     // Reset state
     G = makeNewGame();
@@ -540,6 +555,7 @@
       isHuman: idx===0,
       food:2, silver:2, infl:0,
       alive:true,
+      aiStyle: idx===0 ? null : aiStyle,
     }));
 
     // build regions from map nodes
@@ -1086,86 +1102,324 @@
     }
   }
 
-  function endGame(msg){
+  
+  // ---------- Scoreboard / Victory progress ----------
+  function victoryTargets(totalPlayers){
+    // Influence targets: 18 for 2–3 players, 24 for 4–5 players (per booklet scaling)
+    const infl = (totalPlayers<=3)?18:24;
+    // Territory: 4 core + extra (2 for 2–3p, 4 for 4–5p)
+    const extra = (totalPlayers<=3)?2:4;
+    return { infl, extra, total: 4+extra };
+  }
+
+  function playerTerritoryProgress(pid){
+    const p = G.players.find(x=>x.id===pid);
+    if(!p) return {coreOwned:0, totalOwned:0};
+    const owned = Object.values(G.regions).filter(r=>r.ownerPlayerId===pid).map(r=>r.id);
+    const core = (KINGDOMS.find(k=>k.id===p.kingdomId)?.core)||[];
+    const coreOwned = core.filter(rid=>owned.includes(rid)).length;
+    return { coreOwned, totalOwned: owned.length };
+  }
+
+  function openScoreboard(){
+    const t = victoryTargets(G.players.length);
+    const rows = G.players.map(p=>{
+      const prog = playerTerritoryProgress(p.id);
+      const infl = p.infl||0;
+      return {p, prog, infl};
+    });
+    rows.sort((a,b)=> (b.infl-a.infl) || (b.prog.totalOwned-a.prog.totalOwned));
+
+    const html = rows.map(r=>{
+      const p=r.p;
+      const prog=r.prog;
+      const need = t.total;
+      const terrStr = `${prog.totalOwned}/${need} (core ${prog.coreOwned}/4)`;
+      const near = (r.infl >= t.infl-2) || (prog.totalOwned >= need-1 && prog.coreOwned>=3);
+      return `<div class="score-row ${near?'near':''}">
+        <div class="score-name"><span class="swatch" style="background:${(KINGDOMS.find(k=>k.id===p.kingdomId)?.color||'#888')}"></span>${playerName(p.id)}</div>
+        <div class="score-metric">👑 ${r.infl}/${t.infl}</div>
+        <div class="score-metric">🗺️ ${terrStr}</div>
+      </div>`;
+    }).join("");
+
+    showModal("Scoreboard", `<div class="scoreboard">
+      <div class="score-note">Targets: 👑 Influence ${t.infl} OR 🗺️ Territory 4 core + ${t.extra} extra (${t.total} total).</div>
+      ${html}
+    </div>`, [{label:"Close", primary:true, onClick:()=>hideModal()}]);
+  }
+
+  function updateVictoryHud(){
+    if(!hudVictory) return;
+    const t = victoryTargets(G.players.length);
+    const h = G.players.find(p=>p.id===G.humanPlayerId);
+    if(!h) return;
+    const prog = playerTerritoryProgress(h.id);
+    const terrNeed = t.total;
+    hudVictory.textContent = `Win: 👑 ${h.infl||0}/${t.infl} • 🗺️ ${prog.totalOwned}/${terrNeed} (core ${prog.coreOwned}/4)`;
+  }
+
+function endGame(msg){
     G.phase="gameover";
     showModal("Game Over", msg, [{label:"New Game", primary:true, onClick:()=>{ hideModal(); location.reload(); }}]);
   }
 
   // ---------- Combat (simple but readable) ----------
+  
+  // ---------- Combat (v5: stance + skirmish + retreat + clearer UI) ----------
   function resolveCombat(attackerPid, attackerUnitId, defenderUnitId){
     const atk = G.units[attackerUnitId];
     const def = G.units[defenderUnitId];
     if(!atk || !def) return;
-    if(G.ap < 1 && isHumanTurn()) return toastMsg("No AP remaining.");
-
     const rid = atk.regionId;
     const region = G.regions[rid];
-    const defTerrain = TERRAIN[region.terrain]?.def || 0;
-    const hasCastle = region.buildings.includes("castle") ? 2 : 0;
-    const capBonus = region.capital ? 1 : 0;
-    const baseDef = defTerrain + hasCastle + capBonus;
 
-    const droll = rollDie();
-    const mod = (droll===1)?2:(droll===2)?1:(droll===5)?-1:(droll===6)?-2:0;
-    const totalDef = Math.max(0, baseDef + mod);
+    if(isHumanTurn() && G.ap < 1) return toastMsg("No AP remaining.");
 
-    const defBonus = (totalDef<=1)?0:(totalDef<=3)?1:(totalDef<=5)?2:3;
+    // Skirmish if either side has exactly 1 unit
+    const isSkirmish = (atk.strength===1 || def.strength===1);
 
-    const atkStr = atk.strength;
-    const defStr = def.strength + defBonus;
+    const doFight = (atkStance, defStance) => {
+      // base defense from terrain / castle / capital
+      const terr = TERRAIN[region?.terrain||"plains"] || TERRAIN.plains;
+      let baseDef = terr.def||0;
+      if(region?.buildings?.includes("castle")) baseDef += 2;
+      if(region?.capital) baseDef += 1;
 
-    const diff = atkStr - defStr;
+      // stance RPS: Offensive > Balanced > Defensive > Offensive
+      const beats = { offensive:"balanced", balanced:"defensive", defensive:"offensive" };
+      let stanceWinner = null;
+      if(atkStance!==defStance){
+        if(beats[atkStance]===defStance) stanceWinner="attacker";
+        else if(beats[defStance]===atkStance) stanceWinner="defender";
+      }
+      const stanceBonus = (stanceWinner==="defender")?1:(stanceWinner==="attacker")?0:0; // winner gets +1 defence (defender only in practice)
 
-    // outcome
-    let result = "";
-    if(Math.abs(diff) <= 1){
-      // stalemate
-      atk.strength -= 1;
-      def.strength -= 1;
-      result = "Stalemate: both lose 1 unit.";
-    } else if(diff >= 2 && diff <= 3){
-      def.strength -= 1;
-      result = "Attacker minor win: defender loses 1 unit.";
-    } else if(diff >= 4 && diff <= 5){
-      def.strength -= 2;
-      result = "Attacker clear win: defender loses 2 units.";
-    } else if(diff >= 6){
-      def.strength -= 3;
-      result = "Crushing victory: defender loses 3 units.";
-    } else if(diff <= -2 && diff >= -3){
-      atk.strength -= 1;
-      result = "Defender minor win: attacker loses 1 unit.";
-    } else if(diff <= -4 && diff >= -5){
-      atk.strength -= 2;
-      result = "Defender clear win: attacker loses 2 units.";
-    } else if(diff <= -6){
-      atk.strength -= 3;
-      result = "Defender crushing win: attacker loses 3 units.";
-    }
+      // die roll modifies defence
+      const droll = rollDie();
+      const mod = (droll===1)?2:(droll===2)?1:(droll===5)?-1:(droll===6)?-2:0;
 
-    if(isHumanTurn()) G.ap -= 1;
+      let totalDef = Math.max(0, baseDef + stanceBonus + mod);
 
-    // cleanup
-    if(atk.strength<=0) delete G.units[atk.id];
-    if(def.strength<=0) delete G.units[def.id];
+      // defence to strength bonus
+      const defBonus = (totalDef<=1)?0:(totalDef<=3)?1:(totalDef<=5)?2:3;
 
-    // update contested flags
-    const enemyLeft = Object.values(G.units).some(u=>u.regionId===rid && u.playerId!==attackerPid);
-    const atkLeft = Object.values(G.units).some(u=>u.regionId===rid && u.playerId===attackerPid);
-    if(region){
-      region.contested = enemyLeft || (region.ownerPlayerId && region.ownerPlayerId!==attackerPid && atkLeft);
-    }
+      const atkStr = atk.strength;
+      const defEff = def.strength + defBonus;
 
-    log(G, `Battle in ${rid}: def=${baseDef} + roll(${droll})=${mod} → totalDef ${totalDef} (+${defBonus} str). ${result}`, "battle");
-    writeSummary("Battle", [
-      `${playerName(attackerPid)} attacked in ${rid}.`,
-      `Defence: base ${baseDef}, die ${droll} (${mod>=0?"+":""}${mod}) → ${totalDef} ⇒ +${defBonus} defender strength.`,
-      result
-    ]);
+      // resolve
+      let diff = atkStr - defEff;
 
-    hideModal();
-    updateRegionPanel(); renderAll();
+      // skirmish override
+      let outcome = { kind:"", atkLoss:0, defLoss:0, retreatSteps:0, loser:null };
+      if(isSkirmish){
+        const s = rollDie();
+        // 1-2 defender wins, 3 both lose 1, 4-6 attacker wins
+        if(s<=2){
+          outcome = { kind:"Skirmish: defender wins", atkLoss:1, defLoss:0, retreatSteps:0, loser:"attacker" };
+        } else if(s===3){
+          outcome = { kind:"Skirmish: stalemate", atkLoss:1, defLoss:1, retreatSteps:0, loser:null };
+        } else {
+          outcome = { kind:"Skirmish: attacker wins", atkLoss:0, defLoss:1, retreatSteps:0, loser:"defender" };
+        }
+        // overwrite defense info to show in UI still
+        diff = (outcome.loser==="defender")?2:(outcome.loser==="attacker")?-2:0;
+        return { atkStance, defStance, stanceWinner, terr:terr.name, baseDef, droll, mod, totalDef, defBonus, atkStr, defEff, diff, outcome, skirmishRoll:s };
+      }
+
+      if(Math.abs(diff) <= 1){
+        outcome = { kind:"Stalemate", atkLoss:1, defLoss:1, retreatSteps:0, loser:null };
+      } else if(diff >= 2 && diff <= 3){
+        outcome = { kind:"Minor win (attacker)", atkLoss:0, defLoss:1, retreatSteps:1, loser:"defender" };
+      } else if(diff >= 4 && diff <= 5){
+        outcome = { kind:"Clear win (attacker)", atkLoss:0, defLoss:2, retreatSteps:2, loser:"defender" };
+      } else if(diff >= 6){
+        outcome = { kind:"Crushing victory (attacker)", atkLoss:0, defLoss:3, retreatSteps:2, loser:"defender", scatter:true };
+      } else if(diff <= -2 && diff >= -3){
+        outcome = { kind:"Minor win (defender)", atkLoss:1, defLoss:0, retreatSteps:1, loser:"attacker" };
+      } else if(diff <= -4 && diff >= -5){
+        outcome = { kind:"Clear win (defender)", atkLoss:2, defLoss:0, retreatSteps:2, loser:"attacker" };
+      } else if(diff <= -6){
+        outcome = { kind:"Crushing victory (defender)", atkLoss:3, defLoss:0, retreatSteps:2, loser:"attacker", scatter:true };
+      }
+
+      return { atkStance, defStance, stanceWinner, terr:terr.name, baseDef, droll, mod, totalDef, defBonus, atkStr, defEff, diff, outcome };
+    };
+
+    const applyOutcome = (info) => {
+      const beforeAtk = atk.strength;
+      const beforeDef = def.strength;
+
+      atk.strength = Math.max(0, atk.strength - info.outcome.atkLoss);
+      def.strength = Math.max(0, def.strength - info.outcome.defLoss);
+
+      if(isHumanTurn()) G.ap -= 1;
+
+      // delete dead
+      if(atk.strength<=0) delete G.units[atk.id];
+      if(def.strength<=0) delete G.units[def.id];
+
+      // retreat loser if still alive
+      if(info.outcome.loser){
+        const loserUnit = (info.outcome.loser==="attacker") ? G.units[atk.id] : G.units[def.id];
+        const loserPid = (info.outcome.loser==="attacker") ? attackerPid : def.playerId;
+        if(loserUnit && info.outcome.retreatSteps>0){
+          retreatUnitTowardsCapital(loserUnit.id, loserPid, info.outcome.retreatSteps);
+        }
+        // scatter on crushing victory: any surviving loser units disbanded (removed)
+        if(info.outcome.scatter){
+          if(loserUnit){
+            delete G.units[loserUnit.id];
+          }
+        }
+      }
+
+      // contested flag update
+      const enemyLeft = Object.values(G.units).some(u=>u.regionId===rid && u.playerId!==attackerPid);
+      const atkLeft = Object.values(G.units).some(u=>u.regionId===rid && u.playerId===attackerPid);
+      if(region){
+        region.contested = enemyLeft || (region.ownerPlayerId && region.ownerPlayerId!==attackerPid && atkLeft);
+      }
+
+      const lines = [];
+      lines.push(`${playerName(attackerPid)} attacked in ${rid}.`);
+      if(info.skirmishRoll){
+        lines.push(`Skirmish roll: ${info.skirmishRoll}`);
+      } else {
+        lines.push(`Terrain: ${info.terr} (base def ${info.baseDef})`);
+        lines.push(`Stance: ${info.atkStance} vs ${info.defStance}${info.stanceWinner?` (winner: ${info.stanceWinner})`:""}`);
+        lines.push(`Defence die: ${info.droll} (${info.mod>=0?"+":""}${info.mod}) ⇒ total def ${info.totalDef} ⇒ +${info.defBonus} defender strength.`);
+      }
+      lines.push(`Strength: attacker ${info.atkStr} vs defender ${info.defEff} (incl. def bonus).`);
+      lines.push(`${info.outcome.kind}. Losses: attacker -${info.outcome.atkLoss}, defender -${info.outcome.defLoss}.`);
+      if(info.outcome.retreatSteps>0 && info.outcome.loser){
+        lines.push(`Retreat: ${info.outcome.loser} retreats ${info.outcome.retreatSteps} step(s).`);
+      }
+
+      writeSummary("Battle", lines);
+
+      log(G, `Battle in ${rid}: ${info.outcome.kind} (A ${beforeAtk}->${atk.strength||0}, D ${beforeDef}->${def.strength||0}).`, "battle");
+
+      updateRegionPanel(); renderAll();
+    };
+
+    // Human chooses stance when human is attacker; otherwise quick simulate
+    const chooseStances = () => {
+      const stanceButtons = [
+        { label:"Offensive ⚔️", value:"offensive" },
+        { label:"Balanced ⚖️", value:"balanced" },
+        { label:"Defensive 🛡️", value:"defensive" },
+      ];
+      if(isHumanTurn()){
+        showModal("Choose stance", `<div class="stance-grid">
+          <div class="stance-note">Your attack in <b>${rid}</b>. Pick a stance.</div>
+        </div>`, stanceButtons.map(s=>({
+          label:s.label, primary:(s.value==="balanced"),
+          onClick:()=>{
+            const ai = aiPickStance(def.playerId, atk.strength, def.strength);
+            const info = doFight(s.value, ai);
+            hideModal();
+            showCombatResult(info, ()=>applyOutcome(info));
+          }
+        })).concat([{label:"Cancel", onClick:()=>hideModal()}]));
+      } else {
+        const atkSt = aiPickStance(attackerPid, atk.strength, def.strength);
+        const dfSt = aiPickStance(def.playerId, atk.strength, def.strength);
+        const info = doFight(atkSt, dfSt);
+        showCombatResult(info, ()=>applyOutcome(info), true);
+      }
+    };
+
+    chooseStances();
   }
+
+  function showCombatResult(info, onApply, auto=false){
+    const out = info.outcome;
+    const html = `<div class="combat-card">
+      <div class="combat-row"><b>Outcome</b>: ${out.kind}</div>
+      ${info.skirmishRoll?`<div class="combat-row">Skirmish roll: <b>${info.skirmishRoll}</b></div>`:
+      `<div class="combat-row">Terrain: ${info.terr} • Base def ${info.baseDef}</div>
+       <div class="combat-row">Stance: ${info.atkStance} vs ${info.defStance}${info.stanceWinner?` • Winner: ${info.stanceWinner}`:""}</div>
+       <div class="combat-row">Defence die: ${info.droll} (${info.mod>=0?"+":""}${info.mod}) → total def ${info.totalDef} → +${info.defBonus} defender strength</div>`}
+      <div class="combat-row">Strength: attacker <b>${info.atkStr}</b> vs defender <b>${info.defEff}</b></div>
+      <div class="combat-row">Losses: attacker <b>-${out.atkLoss}</b>, defender <b>-${out.defLoss}</b></div>
+      ${(out.retreatSteps>0 && out.loser)?`<div class="combat-row">Retreat: <b>${out.loser}</b> ${out.retreatSteps} step(s)</div>`:""}
+    </div>`;
+    const btns = [
+      {label:"Apply", primary:true, onClick:()=>{ hideModal(); onApply(); }},
+    ];
+    if(!auto) btns.push({label:"Cancel", onClick:()=>hideModal()});
+    showModal("Battle result", html, btns);
+  }
+
+  function aiPickStance(pid, atkStr, defStr){
+    const p = G.players.find(x=>x.id===pid);
+    const style = p?.aiStyle || "balanced";
+    // simple bias: defensive if weaker, offensive if stronger
+    const bias = atkStr - defStr;
+    const roll = Math.random();
+    if(style==="aggressive"){
+      if(bias>=2) return "offensive";
+      if(roll<0.55) return "offensive";
+      if(roll<0.8) return "balanced";
+      return "defensive";
+    }
+    if(style==="defensive"){
+      if(bias<=-2) return "defensive";
+      if(roll<0.55) return "defensive";
+      if(roll<0.85) return "balanced";
+      return "offensive";
+    }
+    // balanced
+    if(bias>=3) return roll<0.6? "offensive":"balanced";
+    if(bias<=-3) return roll<0.6? "defensive":"balanced";
+    if(roll<0.34) return "offensive";
+    if(roll<0.67) return "balanced";
+    return "defensive";
+  }
+
+  function retreatUnitTowardsCapital(unitId, pid, steps){
+    const unit = G.units[unitId];
+    if(!unit) return;
+    const cap = (KINGDOMS[G.players.find(p=>p.id===pid)?.kingdomId]?.capital)||null;
+    if(!cap) return;
+    for(let s=0; s<steps; s++){
+      const next = nextStepTowards(unit.regionId, cap, pid);
+      if(!next) break;
+      unit.regionId = next;
+    }
+  }
+
+  function nextStepTowards(start, goal, pid){
+    // BFS shortest path from start to goal using map adjacency
+    const q=[start];
+    const prev={};
+    prev[start]=null;
+    while(q.length){
+      const cur=q.shift();
+      if(cur===goal) break;
+      const nbs = mapData.adj[cur]||[];
+      for(const nb of nbs){
+        const nid = nb.to;
+        if(prev[nid]!==undefined) continue;
+        // avoid moving into enemy-controlled region if retreating (rule-of-thumb)
+        const reg = G.regions[nid];
+        if(reg?.ownerPlayerId && reg.ownerPlayerId!==pid) continue;
+        prev[nid]=cur;
+        q.push(nid);
+      }
+    }
+    if(prev[goal]===undefined) return null;
+    // walk back one step
+    let cur=goal, last=goal;
+    while(prev[cur]!==null){
+      last=cur;
+      cur=prev[cur];
+      if(cur===start) return last;
+    }
+    return last;
+  }
+
 
   function rollDie(){
     return 1 + Math.floor(Math.random()*6);
@@ -1333,17 +1587,31 @@
     }, 0);
   }
 
+  function normalizeMap(m){
+    // Upgrade older map overrides to current background dimensions
+    if(!m || !m.width || !m.height) return m;
+    if(m.width===2736 && m.height===4176) return m;
+    const sx = 2736 / m.width;
+    const sy = 4176 / m.height;
+    m.width = 2736; m.height = 4176;
+    if(Array.isArray(m.nodes)){
+      m.nodes.forEach(n=>{ if(typeof n.x==="number") n.x=Math.round(n.x*sx); if(typeof n.y==="number") n.y=Math.round(n.y*sy); });
+    }
+    return m;
+  }
+
   function loadMap(){
     try{
       const over = localStorage.getItem("bfb_map_override");
-      if(over) return JSON.parse(over);
+      if(over) return normalizeMap(JSON.parse(over));
     }catch(e){}
-    return JSON.parse(JSON.stringify(DEFAULT_MAP));
+    return normalizeMap(JSON.parse(JSON.stringify(DEFAULT_MAP)));
   }
 
   // ---------- UI: summary/log/toast/modal ----------
   function renderAll(){
     // Update HUD
+    updateVictoryHud();
     hudRound.textContent = `Round ${G.round}`;
     hudAp.textContent = `AP ${G.ap}`;
 
@@ -1481,6 +1749,8 @@
     btnSave.addEventListener("click", doSave);
     btnLoad.addEventListener("click", doLoad);
     btnLoadSetup.addEventListener("click", doLoad);
+
+    btnScore.addEventListener("click", ()=> openScoreboard());
 
     btnHelp.addEventListener("click", ()=> showModal("Help", `
       <div>
