@@ -124,8 +124,8 @@
     const m = {};
     for(const r of REGIONS) m[r.id] = [];
     for(const [a,b,cost] of EDGES){
-      m[a].push({to:b, cost});
-      m[b].push({to:a, cost});
+      m[a].push({from:a, to:b, cost});
+      m[b].push({from:b, to:a, cost});
     }
     return m;
   })();
@@ -136,27 +136,28 @@
     // Helper to create rounded-ish polygons (still polygons).
     // We'll hand-place regions in a UK-like stack.
     const polys = {
-      moray:        "520,120 660,120 710,210 640,300 520,270 470,190",
-      scone:        "520,300 640,300 700,390 640,490 520,480 470,390",
-      lothian:      "660,500 800,510 840,600 790,690 660,680 610,590",
-      bernicia:     "780,700 900,720 930,820 870,920 760,900 740,800",
-      galloway:     "460,520 610,520 650,610 590,720 460,700 410,600",
-      isle_man:     "360,740 410,740 430,790 410,840 360,840 340,790",
-      cumbria:      "560,740 720,750 760,860 720,980 570,970 520,860",
-      tynedale:     "760,950 910,970 940,1070 900,1180 760,1160 720,1040",
-      deira:        "740,1210 890,1210 930,1310 880,1410 740,1390 700,1300",
-      east_anglia:  "840,1420 960,1440 970,1540 900,1620 790,1600 790,1480",
-      cheshire:     "500,1040 660,1040 700,1140 650,1250 520,1230 470,1120",
-      lindsey:      "650,1270 750,1280 790,1370 770,1460 670,1450 630,1350",
-      gwynedd:      "330,900 520,900 560,1030 500,1180 340,1160 280,1010",
-      powys:        "330,1180 520,1180 560,1320 500,1460 340,1440 280,1290",
-      tamworth:     "560,1260 650,1260 690,1350 670,1450 580,1440 540,1340",
-      dyfed:        "260,1460 420,1460 450,1560 390,1680 260,1660 220,1560",
-      gwent:        "430,1460 560,1460 590,1560 540,1680 420,1680 390,1560",
-      hwicce:       "560,1460 680,1460 720,1560 690,1680 560,1680 520,1560",
-      winchester:   "620,1700 760,1700 800,1800 760,1920 620,1900 580,1800",
-      sussex_kent:  "760,1700 920,1720 940,1820 900,1950 780,1920 800,1800",
-      cornwall:     "320,1760 520,1760 560,1860 520,1980 340,1980 280,1860",
+      moray:        "520.0,120.0 553.3,104.3 590.0,101.2 660.0,120.0 710.0,210.0 671.7,252.5 640.0,300.0 520.0,270.0 501.7,225.8 489.3,204.8 470.0,190.0 506.8,163.5 509.4,140.5",
+      scone:        "520.0,300.0 580.0,304.3 640.0,300.0 671.3,344.1 700.0,390.0 676.2,408.6 659.8,433.9 640.0,490.0 609.7,492.1 579.9,486.3 520.0,480.0 502.1,431.1 470.0,390.0 494.1,344.5",
+      lothian:        "660.0,500.0 729.0,518.3 800.0,510.0 811.5,558.8 840.0,600.0 803.9,638.8 790.0,690.0 725.9,673.4 660.0,680.0 634.9,635.0 610.0,590.0",
+      bernicia:        "780.0,700.0 840.4,707.6 900.0,720.0 918.1,769.1 930.0,820.0 906.9,874.1 870.0,920.0 816.1,904.1 760.0,900.0 738.5,852.3 740.0,800.0 768.1,753.2",
+      galloway:        "460.0,520.0 535.0,508.5 610.0,520.0 622.2,568.5 650.0,610.0 615.9,662.7 590.0,720.0 525.9,704.0 460.0,700.0 410.0,600.0 436.2,560.7",
+      isle_man:        "360.0,740.0 410.0,740.0 430.0,790.0 420.5,815.2 410.0,840.0 385.0,844.1 360.0,840.0 348.2,815.7 340.0,790.0 353.3,766.3",
+      cumbria:        "560.0,740.0 639.9,746.7 679.9,748.6 720.0,750.0 740.3,804.9 748.2,833.1 760.0,860.0 750.7,890.5 735.1,918.4 720.0,980.0 570.0,970.0 552.6,945.0 540.4,917.1 520.0,860.0",
+      tynedale:        "760.0,950.0 835.2,958.6 910.0,970.0 912.7,1023.7 940.0,1070.0 900.0,1180.0 760.0,1160.0 738.7,1100.4 720.0,1040.0 748.0,998.5",
+      deira:        "740.0,1210.0 815.0,1204.1 890.0,1210.0 916.8,1257.3 930.0,1310.0 880.0,1410.0 812.2,1384.8 740.0,1390.0 709.5,1349.7 700.0,1300.0 731.1,1259.9",
+      east_anglia:        "840.0,1420.0 899.5,1433.3 929.3,1440.2 960.0,1440.0 964.4,1490.1 970.0,1540.0 949.4,1557.4 928.1,1573.9 910.6,1594.9 900.0,1620.0 846.1,1604.1 790.0,1600.0 800.5,1540.0 792.4,1510.5 790.0,1480.0 815.5,1450.4",
+      cheshire:        "500.0,1040.0 580.0,1054.4 660.0,1040.0 686.1,1087.6 700.0,1140.0 685.6,1199.8 650.0,1250.0 586.8,1228.3 520.0,1230.0 470.0,1120.0 480.3,1078.2",
+      lindsey:        "650.0,1270.0 750.0,1280.0 781.5,1319.9 790.0,1370.0 783.3,1415.7 770.0,1460.0 719.3,1461.6 670.0,1450.0 663.2,1394.7 630.0,1350.0 633.2,1308.3",
+      gwynedd:        "330.0,900.0 378.3,898.7 425.0,910.7 520.0,900.0 560.0,1030.0 550.2,1070.7 548.8,1112.5 500.0,1180.0 340.0,1160.0 335.9,1118.8 325.8,1078.7 280.0,1010.0 286.6,946.6",
+      powys:        "330.0,1180.0 425.0,1188.0 472.4,1183.0 520.0,1180.0 531.9,1252.3 560.0,1320.0 542.1,1353.7 525.1,1387.9 500.0,1460.0 459.5,1456.9 420.6,1445.5 380.2,1443.5 340.0,1440.0 325.7,1401.6 301.9,1368.2 280.0,1290.0",
+      tamworth:        "560.0,1260.0 605.0,1250.9 650.0,1260.0 690.0,1350.0 673.1,1398.6 670.0,1450.0 626.3,1433.7 580.0,1440.0 561.0,1389.6 540.0,1340.0 550.4,1300.1",
+      dyfed:        "260.0,1460.0 420.0,1460.0 429.4,1511.7 450.0,1560.0 425.6,1622.8 390.0,1680.0 260.0,1660.0 252.1,1605.1 220.0,1560.0 245.4,1512.1",
+      gwent:        "430.0,1460.0 560.0,1460.0 562.3,1513.8 590.0,1560.0 540.0,1680.0 420.0,1680.0 409.6,1618.8 390.0,1560.0",
+      hwicce:        "560.0,1460.0 620.0,1446.7 680.0,1460.0 720.0,1560.0 690.0,1680.0 625.0,1696.0 560.0,1680.0 544.5,1618.5 520.0,1560.0 532.7,1507.1",
+      winchester:        "620.0,1700.0 690.0,1690.5 760.0,1700.0 781.0,1749.6 800.0,1800.0 767.0,1855.7 765.5,1888.1 760.0,1920.0 726.4,1907.8 690.9,1903.6 620.0,1900.0 598.5,1850.6 580.0,1800.0 598.0,1749.2",
+      sussex_kent:        "760.0,1700.0 840.0,1709.7 920.0,1720.0 940.0,1820.0 910.0,1881.9 900.0,1950.0 836.5,1949.2 780.0,1920.0 777.4,1857.9 800.0,1800.0 771.6,1753.4",
+      cornwall:        "320.0,1760.0 420.0,1764.1 520.0,1760.0 530.6,1785.0 545.1,1808.0 560.0,1860.0 550.0,1923.3 520.0,1980.0 476.9,1998.8 430.0,1996.8 340.0,1980.0 298.3,1925.9 290.2,1892.6 280.0,1860.0 311.2,1814.5",
+
     };
 
     // Region label positions (centroids-ish).
@@ -257,6 +258,14 @@
       }
       const inPlay = [humanK, ...aiKs];
 
+      // Regions in play: cores of selected kingdoms (others are dimmed/disabled).
+      this.playableRegions = new Set();
+      for(const k of inPlay){
+        for(const rid of k.core){ this.playableRegions.add(rid); }
+      }
+      this.playableRegions.add('isle_man');
+
+
       // Create players
       this.players = inPlay.map((k, idx) => ({
         id: k.id,
@@ -305,6 +314,10 @@
     controlOf(regionId){ return this.control[regionId] ?? null; }
     isCapital(regionId){ return !!REGION_BY_ID[regionId]?.capitalOf; }
     isTransit(regionId){ return REGION_BY_ID[regionId]?.special === 'transit'; }
+    isPlayable(regionId){
+      if(!this.playableRegions) return true;
+      return this.playableRegions.has(regionId);
+    }
     regionName(regionId){ return REGION_BY_ID[regionId]?.name ?? regionId; }
 
     logPush(msg){ this.log.unshift({t: Date.now(), msg}); }
@@ -732,6 +745,7 @@
       if(!a || a.ownerId!==p.id) return;
       const edge = ADJ[a.regionId].find(e=>e.to===regionId);
       if(!edge) return;
+      if(!this.isPlayable(regionId)){ TOAST.show('That region is not in play.'); return; }
 
       let cost = edge.cost;
       if(this.turnEffects.navCostPlus1 && isNavalEdge(a.regionId, regionId)) cost += 1;
@@ -877,16 +891,19 @@
       UI.render();
     }
 
-    actionDisband(armyId){
+    actionDisband(armyId, n=1){
       const p = this.current();
       if(!this.canActHuman()) return;
       if(this.ap < 1){ TOAST.show('No AP.'); return; }
       const a = this.armies.find(x=>x.id===armyId);
       if(!a || a.ownerId!==p.id){ TOAST.show('Select your army.'); return; }
-      a.units -= 1;
+      n = Math.max(1, Math.floor(n||1));
+      n = Math.min(n, a.units, this.ap);
+      if(n<=0){ TOAST.show('No AP.'); return; }
+      a.units -= n;
       if(a.units<=0) this.armies = this.armies.filter(x=>x.id!==a.id);
-      this.ap -= 1;
-      this.logPush(`Disbanded 1 unit (-1 AP).`);
+      this.ap -= n;
+      this.logPush(`Disbanded ${n} unit(s) (-${n} AP).`);
       UI.render();
     }
 
@@ -950,7 +967,7 @@
       return choice(['off','bal','def']);
     }
 
-    _resolveBattle({atk, def, regionId, atkStance, defStance}){
+    _resolveBattle({atk, def, regionId, atkStance, defStance, silent=false}){
       const attacker = this.getPlayer(atk.ownerId);
       const defender = this.getPlayer(def.ownerId);
 
@@ -974,7 +991,7 @@
         this._cleanupAfterBattle(atk, def);
         this.ap -= 1;
         this.logPush(`${attacker.name} attacked in ${this.regionName(regionId)} — ${outcome}`);
-        UI.openModal('Battle Result', `<div class="sub">${escapeHTML(outcome)}</div>`, [{text:'OK', kind:'primary', onClick:()=> UI.closeModal()}]);
+        if(!silent){ UI.openModal('Battle Result', `<div class="sub">${escapeHTML(outcome)}</div>`, [{text:'OK', kind:'primary', onClick:()=> UI.closeModal()}]); }
         return;
       }
 
@@ -1122,7 +1139,7 @@
       `;
 
       this.logPush(`${attacker.name} attacked ${defender.name} in ${this.regionName(regionId)} — ${result}.`);
-      UI.openModal('Battle Result', html, [{text:'OK', kind:'primary', onClick:()=> UI.closeModal()}]);
+      if(!silent){ UI.openModal('Battle Result', html, [{text:'OK', kind:'primary', onClick:()=> UI.closeModal()}]); }
     }
 
     _cleanupAfterBattle(atk, def){
@@ -1148,6 +1165,7 @@
     _aiTurn(p){
       if(this.phase!=='action') return;
       const lines = [];
+      try {
       const style = this.config.aiStyle || 'balanced';
 
       const tryAttack = ()=>{
@@ -1159,7 +1177,7 @@
             // auto stance
             const atkStance = this._aiChooseStance(p, a, enemy);
             const defStance = this._aiChooseStance(this.getPlayer(enemy.ownerId), a, enemy);
-            this._resolveBattle({atk:a, def:enemy, regionId:a.regionId, atkStance, defStance});
+            this._resolveBattle({atk:a, def:enemy, regionId:a.regionId, atkStance, defStance, silent:true});
             lines.push(`Attacked in ${this.regionName(a.regionId)}.`);
             return true;
           }
@@ -1173,7 +1191,9 @@
         if(myArmies.length===0) return false;
 
         // choose an army near targets
-        const targets = p.core.filter(rid => this.controlOf(rid)!==p.id).concat(REGIONS.map(r=>r.id).filter(rid=>!this.isTransit(rid) && this.controlOf(rid)!==p.id));
+        const targets = p.core.filter(rid => this.controlOf(rid)!==p.id)
+          .concat(REGIONS.map(r=>r.id).filter(rid=>!this.isTransit(rid) && this.controlOf(rid)!==p.id))
+          .filter(rid=> this.isPlayable(rid));
         let best = null;
         for(const a of myArmies){
           for(const t of targets){
@@ -1287,9 +1307,14 @@
         break;
       }
 
+      } catch(e){
+        console.warn(e);
+        lines.push('AI error — ended turn safely.');
+      }
+
       this.sumPush(`${p.name} — Actions`, lines.length?lines:['No actions.']);
       UI.render();
-      setTimeout(()=> this.endTurn(), 500);
+      setTimeout(()=> this.endTurn(), 450);
     }
 
     actionRecruitAI(p, regionId){
@@ -1305,6 +1330,7 @@
 
     _edgeCostWithEffects(edge){
       const a=edge.from, b=edge.to;
+      if(!this.isPlayable(a) || !this.isPlayable(b)) return 9999;
       const base = (ADJ[a].find(e=>e.to===b)?.cost) ?? 999;
       let cost = base;
       if(this.turnEffects.navCostPlus1 && isNavalEdge(a,b)) cost += 1;
@@ -1490,6 +1516,7 @@
                 <span class="pill">👑 ${human.influence}</span>
                 <span class="pill">${escapeHTML(winText)}</span>
               </div>
+              <div class="phaseInfo" id="phaseInfo"></div>
             </div>
             <div class="right">
               <button class="btn small ghost" id="scoreBtn">Score</button>
@@ -1512,6 +1539,7 @@
                 </filter>
               </defs>
               <g id="panzoom">
+                <image href="map_bg.png" x="0" y="0" width="${MAP.viewBox.w}" height="${MAP.viewBox.h}" opacity="0.23" preserveAspectRatio="xMidYMid meet" />
                 <!-- connections -->
                 <g id="connections"></g>
                 <!-- regions -->
@@ -1524,6 +1552,11 @@
                 <g id="labels"></g>
               </g>
             </svg>
+
+            <div class="feedPanel" id="feedPanel">
+              <div class="feedHead">Activity</div>
+              <div class="feedBody" id="feedBody"></div>
+            </div>
 
             <div class="sheet" id="sheet">
               <div class="inner">
@@ -1602,7 +1635,7 @@
         if(!game.canActHuman()) return;
         const a = selectedHumanArmyAtSelectedRegion();
         if(!a){ TOAST.show('Tap your army first.'); return; }
-        game.actionDisband(a.id);
+        openDisbandDialog(a.id);
       });
       $('#callUpBtn').addEventListener('click', ()=> openCallUpDialog());
 
@@ -1651,6 +1684,37 @@
       setTimeout(()=>{
         const range = $('#callRange');
         const badge = $('#callN');
+        const update = ()=> badge.textContent = range.value;
+        range.addEventListener('input', update);
+        update();
+      },0);
+    }
+
+    function openDisbandDialog(armyId){
+      const human = game.players.find(p=>p.isHuman);
+      const a = game.armies.find(x=>x.id===armyId && x.ownerId===human.id);
+      if(!a){ TOAST.show('Select your army first.'); return; }
+      const max = Math.min(a.units, game.ap);
+      if(max<=0){ TOAST.show('No AP.'); return; }
+      const html = `
+        <div class="sub">Disband units from your army in <b>${escapeHTML(game.regionName(a.regionId))}</b>.</div>
+        <div style="margin-top:10px" class="item">
+          <div><b>Units to disband</b><div class="sub">Costs 1 AP per unit (max this turn: ${max}).</div></div>
+          <span class="badge" id="disN">1</span>
+        </div>
+        <input id="disRange" type="range" min="1" max="${max}" value="1" style="width:100%;margin-top:10px">
+      `;
+      openModal('Disband', html, [
+        { text:'Disband', kind:'danger', onClick:()=> {
+          const n = parseInt($('#disRange').value,10);
+          closeModal();
+          game.actionDisband(armyId, n);
+        }},
+        { text:'Cancel', kind:'ghost', onClick:()=> closeModal() },
+      ]);
+      setTimeout(()=>{
+        const range = $('#disRange');
+        const badge = $('#disN');
         const update = ()=> badge.textContent = range.value;
         range.addEventListener('input', update);
         update();
@@ -1876,6 +1940,7 @@
       const con = $('#connections');
       con.innerHTML = '';
       for(const [a,b,cost] of EDGES){
+        if(game && (!game.isPlayable(a) || !game.isPlayable(b))) continue;
         const [x1,y1]=MAP.labels[a], [x2,y2]=MAP.labels[b];
         const line = document.createElementNS('http://www.w3.org/2000/svg','line');
         line.setAttribute('x1',x1); line.setAttribute('y1',y1);
@@ -1924,9 +1989,11 @@
 
       // Interaction wiring
       $$('#regions polygon').forEach(poly=>{
-        poly.addEventListener('pointerdown', (ev)=>{
+        poly.addEventListener('pointerup', (ev)=>{
           ev.stopPropagation();
+          if(panzoom && (panzoom.dragging || panzoom._justDragged)) return;
           const rid = poly.getAttribute('data-rid');
+          if(game && !game.isPlayable(rid)) return;
 
           // If we're in move mode and this region is reachable, move instead of opening the sheet.
           if(game && game.canActHuman() && game.selected.mode==='move' && game.selected.armyId){
@@ -1949,10 +2016,11 @@
       });
 
       // Army tokens click
-      $('#armies').addEventListener('pointerdown', (ev)=> {
+      $('#armies').addEventListener('pointerup', (ev)=> {
         const g = ev.target.closest?.('[data-army]');
         if(!g) return;
         ev.stopPropagation();
+        if(panzoom && (panzoom.dragging || panzoom._justDragged)) return;
         const aid = g.getAttribute('data-army');
         const a = game.armies.find(x=>x.id===aid);
         if(!a) return;
@@ -1992,13 +2060,45 @@
       pills[2].textContent = `👑 ${human.influence}`;
       pills[3].textContent = winText;
 
+      // Activity feed (always visible)
+      const feed = $('#feedBody');
+      if(feed){
+        const rows = game.log.slice(0,8).map((l)=>{
+          const t = new Date(l.t);
+          const hh = String(t.getHours()).padStart(2,'0');
+          const mm = String(t.getMinutes()).padStart(2,'0');
+          return `<div class="feedRow"><span class="feedTime">${hh}:${mm}</span><span class="feedMsg">${escapeHTML(l.msg)}</span></div>`;
+        }).join('');
+        feed.innerHTML = rows || '<div class="sub">No activity yet.</div>';
+      }
+
+      // Turn info snippet
+      const phaseInfo = $('#phaseInfo');
+      if(phaseInfo){
+        const cur = game.current();
+        const last = game.turnSummary[0];
+        let info = '';
+        if(last && last.title.endsWith('— Start')){
+          // show the latest start summary for whoever is active
+          info = last.lines.slice(1,4).map(x=>`• ${escapeHTML(x)}`).join('<br>');
+        }
+        phaseInfo.innerHTML = info ? `<div class="sub">${info}</div>` : '<div class="sub">Tap a region to view details.</div>';
+      }
+
       // Regions fill by owner
       $$('#regions polygon').forEach(poly=>{
         const rid = poly.getAttribute('data-rid');
         const owner = game.controlOf(rid);
         const isTransit = game.isTransit(rid);
-        const base = isTransit ? 'rgba(148,163,184,0.16)' : 'rgba(30,41,59,0.65)';
+        const playable = game.isPlayable(rid);
+        const base = isTransit ? 'rgba(148,163,184,0.16)' : (playable ? 'rgba(30,41,59,0.65)' : 'rgba(2,6,23,0.85)');
         let fill = base;
+        if(!playable){
+          poly.setAttribute('fill', fill);
+          poly.setAttribute('stroke','rgba(148,163,184,0.10)');
+          poly.setAttribute('stroke-width','1.5');
+          return;
+        }
         if(owner){
           const col = game.colorOf(owner);
           fill = `color-mix(in oklab, ${col} 35%, rgba(30,41,59,0.55))`;
@@ -2042,9 +2142,9 @@
       for(const [rid, arr] of Object.entries(groups)){
         const [cx,cy] = MAP.labels[rid];
         arr.sort((a,b)=>b.units-a.units);
-        const offsetStart = -(arr.length-1)*18;
+        const offsetStart = -(arr.length-1)*24;
         arr.forEach((a, idx)=>{
-          const x = cx + offsetStart + idx*36;
+          const x = cx + offsetStart + idx*48;
           const y = cy - 36;
           const g = document.createElementNS('http://www.w3.org/2000/svg','g');
           g.setAttribute('data-army', a.id);
@@ -2053,7 +2153,7 @@
           const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
           circle.setAttribute('cx', x);
           circle.setAttribute('cy', y);
-          circle.setAttribute('r', 18);
+          circle.setAttribute('r', 22);
           circle.setAttribute('fill', game.colorOf(a.ownerId));
           circle.setAttribute('stroke', (a.id===game.selected.armyId)? 'rgba(255,255,255,0.95)' : 'rgba(2,6,23,0.65)');
           circle.setAttribute('stroke-width', (a.id===game.selected.armyId)? '4' : '2');
@@ -2111,6 +2211,8 @@
       };
       this._pointers = new Map();
       this._start = null;
+      this.dragging = false;
+      this._dragMoved = 0;
       this._bind();
       this.fit();
     }
@@ -2131,6 +2233,8 @@
       this.svg.setPointerCapture(e.pointerId);
       this._pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
       if(this._pointers.size===1){
+        this.dragging = false;
+        this._dragMoved = 0;
         this._start = { ...this.state, p1: {x:e.clientX, y:e.clientY} };
       } else if(this._pointers.size===2){
         const pts = Array.from(this._pointers.values());
@@ -2146,6 +2250,8 @@
         const p1 = Array.from(this._pointers.values())[0];
         const dx = p1.x - this._start.p1.x;
         const dy = p1.y - this._start.p1.y;
+        this._dragMoved = Math.max(this._dragMoved, Math.hypot(dx,dy));
+        if(this._dragMoved > 6) this.dragging = true;
         this.state.tx = this._start.tx + dx;
         this.state.ty = this._start.ty + dy;
         this._apply();
@@ -2167,7 +2273,12 @@
 
     _onUp(e){
       this._pointers.delete(e.pointerId);
-      if(this._pointers.size===0) this._start=null;
+      if(this._pointers.size===0){
+        this._start=null;
+        // keep a short-lived flag so tap handlers can ignore the pointerup that ended a drag
+        this._justDragged = this.dragging;
+        setTimeout(()=>{ this._justDragged = false; }, 60);
+      }
     }
 
     _apply(){

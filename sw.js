@@ -1,5 +1,5 @@
-/* Battle for Britannia v6 service worker */
-const CACHE = 'bfb-v6-2025-12-30';
+/* Battle for Britannia v7 service worker */
+const CACHE = 'bfb-v7-2025-12-30';
 const ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,8 @@ const ASSETS = [
   './app.js',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './map_bg.png'
 ];
 
 self.addEventListener('install', (e)=>{

@@ -352,3 +352,52 @@ svg{ display:block; width:100%; height:100%; }
   stroke-width: 3px;
   stroke-linejoin: round;
 }
+
+
+/* v7 UI: always-visible activity feed */
+.feedPanel{
+  position:absolute;
+  left:10px;
+  right:10px;
+  bottom:92px;
+  max-height:160px;
+  background:rgba(2,6,23,0.72);
+  border:1px solid rgba(148,163,184,0.22);
+  border-radius:16px;
+  box-shadow:0 16px 36px rgba(0,0,0,0.35);
+  backdrop-filter:blur(10px);
+  overflow:hidden;
+}
+.feedHead{
+  padding:10px 12px;
+  font-weight:900;
+  letter-spacing:0.02em;
+  border-bottom:1px solid rgba(148,163,184,0.14);
+}
+.feedBody{
+  padding:10px 12px;
+  overflow:auto;
+  max-height:118px;
+}
+.feedRow{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  margin:6px 0;
+}
+.feedTime{
+  opacity:0.7;
+  font-variant-numeric:tabular-nums;
+  min-width:44px;
+}
+.feedMsg{
+  line-height:1.25;
+}
+.phaseInfo{
+  margin-top:6px;
+  opacity:0.9;
+}
+
+@media (max-width: 520px){
+  .feedPanel{ bottom:96px; max-height:180px; }
+}
