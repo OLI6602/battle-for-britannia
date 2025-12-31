@@ -1545,22 +1545,30 @@
 
           <div class="mapWrap">
             <div class="mapControls">
-              <div class="fab" id="zoomIn">+</div>
-              <div class="fab" id="zoomOut">−</div>
-              <div class="fab" id="fit">⤢</div>
+              <div class="zoomStack">
+                <button class="fab" id="zoomIn" aria-label="Zoom in">+</button>
+                <button class="fab" id="zoomOut" aria-label="Zoom out">−</button>
+                <button class="fab" id="fit" aria-label="Fit map">⤢</button>
+              </div>
 
-              <div class="dpad" aria-label="Pan controls">
-                <button class="fab" id="panUp" aria-label="Pan up">▲</button>
-                <div></div>
-                <button class="fab" id="panRight" aria-label="Pan right">▶</button>
-                <button class="fab" id="panLeft" aria-label="Pan left">◀</button>
-                <button class="fab" id="panCenter" aria-label="Center map">◎</button>
-                <div></div>
-                <button class="fab" id="panDown" aria-label="Pan down">▼</button>
-                <div></div>
-                <div></div>
+              <div class="dpadWrap" aria-label="Pan controls">
+                <div class="dpad">
+                  <div></div>
+                  <button class="fab" id="panUp" aria-label="Pan up">▲</button>
+                  <div></div>
+
+                  <button class="fab" id="panLeft" aria-label="Pan left">◀</button>
+                  <button class="fab" id="panCenter" aria-label="Center map">◎</button>
+                  <button class="fab" id="panRight" aria-label="Pan right">▶</button>
+
+                  <div></div>
+                  <button class="fab" id="panDown" aria-label="Pan down">▼</button>
+                  <div></div>
+                </div>
               </div>
             </div>
+
+            <div class="mapHint" id="mapHint"></div>
 
             <svg id="mapSvg" viewBox="0 0 ${MAP.viewBox.w} ${MAP.viewBox.h}" preserveAspectRatio="xMidYMid meet" aria-label="Map">
               <defs>
@@ -1652,11 +1660,23 @@
       $('#zoomOut').addEventListener('click', ()=> panzoom.zoomBy(0.87));
       $('#fit').addEventListener('click', ()=> panzoom.fit());
 
-      const nudge = (dx,dy)=> panzoom.nudge(dx,dy);
-      $('#panUp').addEventListener('click', ()=> nudge(0, 120));
-      $('#panDown').addEventListener('click', ()=> nudge(0, -120));
-      $('#panLeft').addEventListener('click', ()=> nudge(120, 0));
-      $('#panRight').addEventListener('click', ()=> nudge(-120, 0));
+      const bindHoldNudge = (id, dx, dy)=>{
+        const el = $(id);
+        if(!el) return;
+        let timer = null;
+        const step = ()=> panzoom.nudge(dx,dy);
+        const stop = ()=> { if(timer){ clearInterval(timer); timer=null; } };
+        el.addEventListener('pointerdown', (e)=>{ e.preventDefault(); step(); timer = setInterval(step, 55); });
+        el.addEventListener('pointerup', stop);
+        el.addEventListener('pointercancel', stop);
+        el.addEventListener('pointerleave', stop);
+        // still allow simple click
+        el.addEventListener('click', ()=> step());
+      };
+      bindHoldNudge('#panUp', 0, 220);
+      bindHoldNudge('#panDown', 0, -220);
+      bindHoldNudge('#panLeft', 220, 0);
+      bindHoldNudge('#panRight', -220, 0);
       $('#panCenter').addEventListener('click', ()=> panzoom.fit());
 
       // UI buttons
@@ -2091,6 +2111,7 @@
           ev.stopPropagation();
           if(panzoom && (panzoom.dragging || panzoom._justDragged)) return;
           const rid = poly.getAttribute('data-rid');
+        poly.classList.toggle('reachable', reachable.has(rid));
           if(game && !game.isPlayable(rid)) return;
 
           // If we're in move mode and this region is reachable, move instead of opening the sheet.
@@ -2144,7 +2165,6 @@
       const p = game.current();
       const human = game.players.find(x=>x.isHuman);
       if(!human) return;
-
       // HUD text
       $('.hud .title').textContent = `${p.name}${p.isHuman?' (You)':''} • Round ${game.round} • AP ${game.ap}/2`;
       const pc = game.players.filter(x=>!x.eliminated).length;
@@ -2152,11 +2172,33 @@
       const extra = (pc<=3)?2:3;
       const humanCoreOwned = human.core.filter(rid=> game.controlOf(rid)===human.id).length;
       const winText = `Win: 👑 ${human.influence}/${infTarget} • 🗺️ ${human.regions.size}/${4+extra} (core ${humanCoreOwned}/4)`;
+
+      const li = (game.lastIncome && game.lastIncome[human.id]) ? game.lastIncome[human.id] : {food:0,silver:0,influence:0};
+
       const pills = $$('.hud .pill');
-      pills[0].textContent = `🍞 ${human.food}`;
-      pills[1].textContent = `💰 ${human.silver}`;
-      pills[2].textContent = `👑 ${human.influence}`;
-      pills[3].textContent = winText;
+      if(pills.length>=4){
+        pills[0].textContent = `🍞 ${human.food}`;
+        pills[1].textContent = `💰 ${human.silver}`;
+        pills[2].textContent = `👑 ${human.influence}`;
+        pills[3].textContent = `Income: 🍞+${li.food} 💰+${li.silver} 👑+${li.influence}`;
+      }
+      const winEl = $('.hudWin');
+      if(winEl) winEl.textContent = winText;
+
+      // Move-mode hint + reachable highlighting
+      const hint = $('#mapHint');
+      const reachable = new Set();
+      if(game.canActHuman() && game.selected.mode==='move' && game.selected.armyId){
+        const a = game.armies.find(x=>x.id===game.selected.armyId);
+        if(a){
+          for(const e of (ADJ[a.regionId]||[])){
+            if(game.isPlayable(e.to)) reachable.add(e.to);
+          }
+        }
+        if(hint) hint.textContent = 'Move: tap a highlighted region.';
+      } else {
+        if(hint) hint.textContent = '';
+      }
 
       // Activity feed (always visible)
       const feed = $('#feedBody');
