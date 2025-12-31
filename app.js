@@ -1188,6 +1188,16 @@
         for(const a of myArmies){
           const enemy = this.armies.find(x=>x.regionId===a.regionId && x.ownerId!==p.id);
           if(enemy && this.ap>=1){
+            // avoid terrible attacks unless aggressive
+            const regionId = a.regionId;
+            const atkBase = a.units;
+            const defBase = enemy.units;
+            const terr = REGION_BY_ID[regionId]?.def || 0;
+            const defHasCastle = (this.buildings[regionId]||[]).includes('castle');
+            const defBonus = terr + (defHasCastle?2:0);
+            if(style!=='aggressive' && atkBase + 1 < defBase + defBonus){
+              continue;
+            }
             // auto stance
             const atkStance = this._aiChooseStance(p, a, enemy);
             const defStance = this._aiChooseStance(this.getPlayer(enemy.ownerId), a, enemy);
@@ -1197,6 +1207,28 @@
           }
         }
         return false;
+
+      const tryPillage = ()=>{
+        if(this.ap<1) return false;
+        const myArmies = this.armies.filter(a=>a.ownerId===p.id);
+        for(const a of myArmies){
+          const rid = a.regionId;
+          if(this.isTransit(rid) || !this.isPlayable(rid)) continue;
+          const enemyHere = this.armies.some(x=>x.regionId===rid && x.ownerId!==p.id);
+          if(enemyHere) continue;
+          const owner = this.controlOf(rid);
+          if(owner===p.id) continue;
+          const hasPillageable = (this.buildings[rid]||[]).some(b=>b!=='castle');
+          if(hasPillageable || Math.random()<0.35){
+            if(this.actionPillageAI(p, rid)){
+              lines.push(`Pillaged ${this.regionName(rid)} (-1 AP).`);
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+
       };
 
       const tryCaptureMove = ()=>{
@@ -1315,6 +1347,7 @@
       let guard = 12;
       while(this.ap>0 && guard-->0){
         if(tryAttack()) continue;
+        if(tryPillage()) continue;
         if(tryCaptureMove()) continue;
         if(tryBuildOrRecruit()) continue;
         if(tryCallUp()) continue;
@@ -1341,6 +1374,34 @@
       this.ap -= 1;
       return true;
     }
+
+    actionPillageAI(p, regionId){
+      if(this.ap < 1) return false;
+      if(this.isTransit(regionId)) return false;
+      const myHere = this.armies.some(a=>a.ownerId===p.id && a.regionId===regionId);
+      if(!myHere) return false;
+      if(this.controlOf(regionId)===p.id) return false;
+
+      const idx = this.buildings[regionId].findIndex(b=>b!=='castle');
+      if(idx>=0){
+        const removed = this.buildings[regionId].splice(idx,1)[0];
+        this.logPush(`${p.name} pillaged ${this.regionName(regionId)}: destroyed ${removed} (+1 Silver).`);
+      } else {
+        this.logPush(`${p.name} pillaged ${this.regionName(regionId)} (+1 Silver).`);
+      }
+      p.silver += 1;
+
+      const prevOwner = this.controlOf(regionId);
+      if(prevOwner){
+        const prev = this.getPlayer(prevOwner);
+        prev?.regions.delete(regionId);
+        this.control[regionId] = null;
+        for(const pl of this.players){ this.storedLevies[regionId][pl.id] = 0; }
+      }
+      this.ap -= 1;
+      return true;
+    }
+
 
     _edgeCostWithEffects(edge){
       const a=edge.from, b=edge.to;
@@ -1371,7 +1432,7 @@
       if(d!==dist.get(u)) continue;
       for(const e of ADJ[u]){
         const v = e.to;
-        const w = costFn ? costFn(e) : e.cost;
+        const w = costFn ? costFn({from:u, to:v, cost:e.cost}) : e.cost;
         const nd = d + w;
         if(nd < (dist.get(v) ?? Infinity)){
           dist.set(v, nd);
@@ -2111,7 +2172,6 @@
           ev.stopPropagation();
           if(panzoom && (panzoom.dragging || panzoom._justDragged)) return;
           const rid = poly.getAttribute('data-rid');
-        poly.classList.toggle('reachable', reachable.has(rid));
           if(game && !game.isPlayable(rid)) return;
 
           // If we're in move mode and this region is reachable, move instead of opening the sheet.
@@ -2225,9 +2285,32 @@
         phaseInfo.innerHTML = info ? `<div class="sub">${info}</div>` : '<div class="sub">Tap a region to view details.</div>';
       }
 
+
+      // Keep the detail panel numbers in sync (levies/buildings) after actions.
+      const dp = $('#detailPanel');
+      if(dp && !dp.classList.contains('collapsed') && game.selected.regionId){
+        const regionId = game.selected.regionId;
+        const r = REGION_BY_ID[regionId];
+        if(r){
+          const ownerId = game.controlOf(regionId);
+          const ownerName = ownerId ? game.getPlayer(ownerId)?.name : (r.special==='transit'?'Transit':'Uncontrolled');
+          const lev = ownerId ? (game.storedLevies[regionId][ownerId]||0) : 0;
+          const b = game.buildings[regionId] || [];
+          const so = $('#sheetOwner');
+          if(so){
+            so.textContent = ownerName || '—';
+            so.style.color = ownerId ? game.colorOf(ownerId) : 'var(--text)';
+          }
+          const st = $('#sheetTerrain'); if(st) st.textContent = `${r.terrain} (+${r.def} def)`;
+          const sl = $('#sheetLevies'); if(sl) sl.textContent = ownerId ? `${lev}/${levySlots(regionId)}` : '—';
+          const sb = $('#sheetBuildCount'); if(sb) sb.textContent = `${b.length}/${buildingSlots(regionId)}`;
+        }
+      }
+
       // Regions fill by owner
       $$('#regions polygon').forEach(poly=>{
         const rid = poly.getAttribute('data-rid');
+        poly.classList.toggle('reachable', reachable.has(rid));
         const owner = game.controlOf(rid);
         const isTransit = game.isTransit(rid);
         const playable = game.isPlayable(rid);
