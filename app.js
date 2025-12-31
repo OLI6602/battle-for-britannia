@@ -247,30 +247,87 @@
       this.armies = []; // {id, ownerId, regionId, units}
       this.captureTimers = {}; // regionId -> {occupierId, remainingTurns} for capitals/regions
       this.turnEffects = { navCostPlus1:false, buildDiscount:0 };
+      this.noCaptureThisTurn = new Set();
       this.peekNextEventFor = null;
       this._eventQueue = [];
       this._init();
     }
 
-    _init(){
-      // Determine kingdoms in play: human + aiCount random from remaining.
-      const humanK = KINGDOMS.find(k=>k.id===this.config.humanKingdomId) ?? KINGDOMS[0];
-      const remaining = KINGDOMS.filter(k=>k.id!==humanK.id);
-      const aiKs = [];
-      while(aiKs.length < this.config.aiCount){
-        const k = remaining.splice(Math.floor(Math.random()*remaining.length),1)[0];
-        if(!k) break;
-        aiKs.push(k);
-      }
-      const inPlay = [humanK, ...aiKs];
+_init(){
+  // Determine kingdoms in play: always include the human, then pick AI kingdoms.
+  // IMPORTANT: even when a kingdom is not a player, its regions remain on the map (dimmed) so
+  // movement connections never "turn off" in low player counts.
+  const humanK = KINGDOMS.find(k=>k.id===this.config.humanKingdomId) ?? KINGDOMS[0];
 
-      // Regions in play: cores of selected kingdoms (others are dimmed/disabled).
-      this.playableRegions = new Set();
-      for(const k of inPlay){
-        for(const rid of k.core){ this.playableRegions.add(rid); }
-      }
-      this.playableRegions.add('isle_man');
+  const remaining = KINGDOMS.filter(k=>k.id!==humanK.id);
 
+  // Prefer AI kingdoms that are geographically closer (shorter AP path between capitals).
+  const capDist = (k)=>{
+    const path = shortestPath(humanK.capital, k.capital, (edge)=>edge.cost);
+    if(!path) return Infinity;
+    let d=0;
+    for(let i=0;i<path.length-1;i++){
+      const a=path[i], b=path[i+1];
+      const e = ADJ[a].find(x=>x.to===b);
+      d += (e?e.cost:99);
+    }
+    return d;
+  };
+
+  const ranked = remaining
+    .map(k=>({k, d: capDist(k)}))
+    .sort((a,b)=> (a.d-b.d) || a.k.name.localeCompare(b.k.name));
+
+  const aiKs = [];
+  const style = this.config.aiStyle || 'balanced';
+  while(aiKs.length < this.config.aiCount && aiKs.length < ranked.length){
+    const poolSize = Math.min(3, ranked.length - aiKs.length);
+    const pool = ranked
+      .filter(x=>!aiKs.some(z=>z.id===x.k.id))
+      .slice(0, poolSize);
+
+    // Aggressive AI is more likely to pick the closest neighbour; others add a bit of variety.
+    const pick = (style==='aggressive' || pool.length===1)
+      ? pool[0].k
+      : choice(pool).k;
+
+    aiKs.push(pick);
+  }
+
+  const inPlay = [humanK, ...aiKs];
+
+  // Track which kingdoms are players.
+  this.inPlayKingdomIds = new Set(inPlay.map(k=>k.id));
+
+  // Region "home" mapping (for dimming + rule references).
+  this.homeOf = {};
+  for(const k of KINGDOMS){
+    for(const rid of k.core){ this.homeOf[rid] = k.id; }
+  }
+
+  // Regions from non-player kingdoms are dimmed but still usable.
+  this.inactiveRegions = new Set();
+  for(const r of REGIONS){
+    const home = this.homeOf[r.id];
+    if(home && !this.inPlayKingdomIds.has(home)) this.inactiveRegions.add(r.id);
+  }
+  this.inactiveRegions.delete('isle_man');
+
+  // Create players
+  this.players = inPlay.map((k, idx) => ({
+    id: k.id,
+    name: k.name,
+    colorVar: k.colorVar,
+    capital: k.capital,
+    core: k.core.slice(),
+    isHuman: idx===0,
+    isAI: idx!==0,
+    food: 2,
+    silver: 2,
+    influence: 0,
+    regions: new Set(),
+    eliminated: false,
+  }));
 
       // Create players
       this.players = inPlay.map((k, idx) => ({
@@ -320,10 +377,9 @@
     controlOf(regionId){ return this.control[regionId] ?? null; }
     isCapital(regionId){ return !!REGION_BY_ID[regionId]?.capitalOf; }
     isTransit(regionId){ return REGION_BY_ID[regionId]?.special === 'transit'; }
-    isPlayable(regionId){
-      if(!this.playableRegions) return true;
-      return this.playableRegions.has(regionId);
-    }
+isPlayable(regionId){ return true; } // all regions remain usable (inactive ones are just dimmed)
+isInactive(regionId){ return !!this.inactiveRegions?.has(regionId); }
+homeKingdom(regionId){ return this.homeOf?.[regionId] ?? null; }
     regionName(regionId){ return REGION_BY_ID[regionId]?.name ?? regionId; }
 
     logPush(msg){ this.log.unshift({t: Date.now(), msg}); }
@@ -343,6 +399,7 @@
     // --- Turn cycle ---
     _startTurn(){
       this.turnEffects = { navCostPlus1:false, buildDiscount:0 };
+      this.noCaptureThisTurn = new Set();
       const p = this.current();
       if(p.eliminated){ this._advanceTurn(); return; }
 
@@ -692,6 +749,8 @@
         const enemyHere = this.armies.some(a=>a.regionId===rid && a.ownerId!==p.id);
         if(enemyHere) continue;
 
+        if(this.noCaptureThisTurn && this.noCaptureThisTurn.has(rid)) continue;
+
         const ctrl = this.controlOf(rid);
         if(ctrl === p.id) {
           // already yours => clear any timer
@@ -761,7 +820,6 @@
       if(!a || a.ownerId!==p.id) return;
       const edge = ADJ[a.regionId].find(e=>e.to===regionId);
       if(!edge) return;
-      if(!this.isPlayable(regionId)){ TOAST.show('That region is not in play.'); return; }
 
       let cost = edge.cost;
       if(this.turnEffects.navCostPlus1 && isNavalEdge(a.regionId, regionId)) cost += 1;
@@ -889,6 +947,8 @@
       const ICON = {farm:'🌾', market:'💰', hall:'👑', castle:'🏰'};
       const pillageable = this.buildings[regionId].filter(b=>b!=='castle');
 
+      if(pillageable.length===0){ TOAST.show('No buildings to pillage.'); return; }
+
       const doPillage = (chosenType)=>{
         let removed = null;
         if(chosenType){
@@ -899,14 +959,14 @@
           if(idx>=0) removed = this.buildings[regionId].splice(idx,1)[0];
         }
 
+        // Pillage never changes control and it pauses capture progress for this turn.
+        this.noCaptureThisTurn?.add(regionId);
+        if(this.captureTimers[regionId] && this.captureTimers[regionId].occupierId===p.id) delete this.captureTimers[regionId];
+
         p.silver += 1;
         this.ap -= 1;
 
-        if(removed){
-          this.logPush(`${p.name} pillaged ${this.regionName(regionId)}: destroyed ${removed} (+1 Silver).`);
-        } else {
-          this.logPush(`${p.name} pillaged ${this.regionName(regionId)} (+1 Silver).`);
-        }
+        this.logPush(`${p.name} pillaged ${this.regionName(regionId)}: destroyed ${removed} (+1 Silver).`);
         UI.render();
       };
 
@@ -1092,7 +1152,7 @@
       defence += (REGION_BY_ID[regionId]?.def || 0);
       const hasCastle = this.buildings[regionId].includes('castle');
       if(hasCastle) defence += 2;
-      if(this.isCapital(regionId)) defence += 1; // town walls
+      if(this.isCapital(regionId)) defence += 2; // town walls (+2 defence)
 
       if(stanceWinner==='atk') {
         // attacker wins stance => +1 defence for attacker side? Rule says winner gets +1 defence.
@@ -1217,7 +1277,7 @@
         <div class="sub">Result: <b>${escapeHTML(result)}</b></div>
         <div style="margin-top:10px" class="list">
           <div class="item"><div><b>Stances</b><div class="sub">Attacker: ${stanceText(atkStance)} • Defender: ${stanceText(defStance)}</div></div></div>
-          <div class="item"><div><b>Defence</b><div class="sub">Terrain ${REGION_BY_ID[regionId]?.def||0} + Castle ${hasCastle?2:0} + Capital ${this.isCapital(regionId)?1:0} + Stance ${(stanceWinner==='def')?1:0} + Tactics ${ctxD.defenceBonus} + Die ${dieMod} = <b>${defence}</b></div></div></div>
+          <div class="item"><div><b>Defence</b><div class="sub">Terrain ${REGION_BY_ID[regionId]?.def||0} + Castle ${hasCastle?2:0} + Capital ${this.isCapital(regionId)?2:0} + Stance ${(stanceWinner==='def')?1:0} + Tactics ${ctxD.defenceBonus} + Die ${dieMod} = <b>${defence}</b></div></div></div>
           <div class="item"><div><b>Strength</b><div class="sub">Attacker ${atkStrength} vs Defender ${defStrength}</div></div></div>
           <div class="item"><div><b>Losses</b><div class="sub">Attacker -${atkLoss} • Defender -${defLoss}${crushing?' • Crushing: survivors disbanded':''}</div></div></div>
         </div>
@@ -1247,196 +1307,325 @@
       army.regionId = cur;
     }
 
-    // ---------- AI ----------
-    _aiTurn(p){
-      if(this.phase!=='action') return;
-      const lines = [];
-      try {
-      const style = this.config.aiStyle || 'balanced';
+    
+// ---------- AI ----------
+_aiTurn(p){
+  if(this.phase!=='action') return;
+  const lines = [];
+  try {
+    const style = this.config.aiStyle || 'balanced';
 
-      const tryAttack = ()=>{
-        // if any AI army shares region with enemy, attack
-        const myArmies = this.armies.filter(a=>a.ownerId===p.id);
-        for(const a of myArmies){
-          const enemy = this.armies.find(x=>x.regionId===a.regionId && x.ownerId!==p.id);
-          if(enemy && this.ap>=1){
-            // avoid terrible attacks unless aggressive
-            const regionId = a.regionId;
-            const atkBase = a.units;
-            const defBase = enemy.units;
-            const terr = REGION_BY_ID[regionId]?.def || 0;
-            const defHasCastle = (this.buildings[regionId]||[]).includes('castle');
-            const defBonus = terr + (defHasCastle?2:0);
-            if(style!=='aggressive' && atkBase + 1 < defBase + defBonus){
-              continue;
-            }
-            // auto stance
-            const atkStance = this._aiChooseStance(p, a, enemy);
-            const defStance = this._aiChooseStance(this.getPlayer(enemy.ownerId), a, enemy);
-            this._resolveBattle({atk:a, def:enemy, regionId:a.regionId, atkStance, defStance, silent:true});
-            lines.push(`Attacked in ${this.regionName(a.regionId)}.`);
-            return true;
-          }
-        }
-        return false;
+    const myArmies = ()=> this.armies.filter(a=>a.ownerId===p.id);
+    const enemyArmies = ()=> this.armies.filter(a=>a.ownerId!==p.id);
 
-      const tryPillage = ()=>{
-        if(this.ap<1) return false;
-        const myArmies = this.armies.filter(a=>a.ownerId===p.id);
-        for(const a of myArmies){
+    const apCost = (from,to)=>{
+      const e = ADJ[from].find(x=>x.to===to);
+      if(!e) return 999;
+      let cost = e.cost;
+      if(this.turnEffects.navCostPlus1 && isNavalEdge(from,to)) cost += 1;
+      return cost;
+    };
+
+    const ensureArmyAtCapital = ()=>{
+      let a = this.armies.find(x=>x.ownerId===p.id && x.regionId===p.capital);
+      if(!a){
+        a = { id: uid(), ownerId:p.id, regionId:p.capital, units:0 };
+        this.armies.push(a);
+      }
+      return a;
+    };
+
+    const totalStored = ()=> this._totalStored(p);
+
+    const callUp = (amount)=>{
+      if(amount<=0) return false;
+      const total = totalStored();
+      if(total<=0) return false;
+      amount = Math.min(amount, total);
+      const cost = (amount<=2)?1:2;
+      if(this.ap < cost) return false;
+
+      // pull levies from richest stores first
+      let remaining = amount;
+      const sources = Array.from(p.regions)
+        .map(rid => ({rid, n:(this.storedLevies[rid][p.id]||0)}))
+        .filter(x=>x.n>0)
+        .sort((a,b)=>b.n-a.n);
+
+      for(const s of sources){
+        if(remaining<=0) break;
+        const take = Math.min(s.n, remaining);
+        this.storedLevies[s.rid][p.id] -= take;
+        remaining -= take;
+      }
+
+      const army = ensureArmyAtCapital();
+      army.units += amount;
+      this.ap -= cost;
+      lines.push(`Called up ${amount} to capital (-${cost} AP).`);
+      return true;
+    };
+
+    const tryAttackHere = ()=>{
+      const mys = myArmies();
+      for(const a of mys){
+        const enemy = this.armies.find(x=>x.regionId===a.regionId && x.ownerId!==p.id);
+        if(enemy && this.ap>=1){
+          // avoid obviously terrible attacks unless aggressive
           const rid = a.regionId;
-          if(this.isTransit(rid) || !this.isPlayable(rid)) continue;
-          const enemyHere = this.armies.some(x=>x.regionId===rid && x.ownerId!==p.id);
-          if(enemyHere) continue;
-          const owner = this.controlOf(rid);
-          if(owner===p.id) continue;
-          const hasPillageable = (this.buildings[rid]||[]).some(b=>b!=='castle');
-          if(hasPillageable || Math.random()<0.35){
-            if(this.actionPillageAI(p, rid)){
-              lines.push(`Pillaged ${this.regionName(rid)} (-1 AP).`);
-              return true;
-            }
+          const terr = REGION_BY_ID[rid]?.def || 0;
+          const defHasCastle = (this.buildings[rid]||[]).includes('castle');
+          const capBonus = this.isCapital(rid) ? 2 : 0;
+          const defBonus = terr + (defHasCastle?2:0) + capBonus;
+
+          if(style!=='aggressive' && (a.units + 1) < (enemy.units + defBonus)){
+            continue;
           }
+
+          const atkStance = this._aiChooseStance(p, a, enemy);
+          const defP = this.getPlayer(enemy.ownerId);
+          const defStance = this._aiChooseStance(defP, a, enemy);
+          this._resolveBattle({atk:a, def:enemy, regionId:rid, atkStance, defStance, silent:true});
+          lines.push(`Attacked in ${this.regionName(rid)} (-1 AP).`);
+          return true;
         }
-        return false;
-      };
+      }
+      return false;
+    };
 
-      };
+    const tryInitiateBattleMove = ()=>{
+      const mys = myArmies().slice().sort((a,b)=>b.units-a.units);
+      for(const a of mys){
+        for(const e of ADJ[a.regionId]){
+          const enemy = this.armies.find(x=>x.regionId===e.to && x.ownerId!==p.id);
+          if(!enemy) continue;
+          const moveCost = apCost(a.regionId, e.to);
+          if(this.ap < moveCost + 1) continue;
 
-      const tryCaptureMove = ()=>{
-        // move toward core regions / adjacent neutrals
-        const myArmies = this.armies.filter(a=>a.ownerId===p.id);
-        if(myArmies.length===0) return false;
+          // crude advantage check
+          const rid = e.to;
+          const terr = REGION_BY_ID[rid]?.def || 0;
+          const defHasCastle = (this.buildings[rid]||[]).includes('castle');
+          const capBonus = this.isCapital(rid) ? 2 : 0;
+          const defBonus = terr + (defHasCastle?2:0) + capBonus;
 
-        // choose an army near targets
-        const targets = p.core.filter(rid => this.controlOf(rid)!==p.id)
-          .concat(REGIONS.map(r=>r.id).filter(rid=>!this.isTransit(rid) && this.controlOf(rid)!==p.id))
-          .filter(rid=> this.isPlayable(rid));
-        let best = null;
-        for(const a of myArmies){
-          for(const t of targets){
-            const path = shortestPath(a.regionId, t, (edge)=> this._edgeCostWithEffects(edge));
-            if(!path || path.length<2) continue;
-            const step = path[1];
-            const cost = this._edgeCostWithEffects({from:a.regionId,to:step});
-            if(cost<=this.ap){
-              const score = (p.core.includes(t)? 4:1) + (this.isCapital(t)?2:0) - (path.length*0.15);
-              if(!best || score>best.score){
-                best = {army:a, to:step, cost, target:t, score};
-              }
-            }
+          if(style!=='aggressive' && (a.units + 1) < (enemy.units + defBonus)){
+            continue;
           }
-        }
-        if(best){
-          best.army.regionId = best.to;
-          // merge friendly armies
-          const same = this.armies.filter(x=>x.ownerId===p.id && x.regionId===best.to);
+
+          // move in
+          a.regionId = rid;
+          this.ap -= moveCost;
+          // merge friendly
+          const same = this.armies.filter(x=>x.ownerId===p.id && x.regionId===rid);
           if(same.length>1){
             const keep = same[0];
             for(let i=1;i<same.length;i++){ keep.units += same[i].units; this.armies = this.armies.filter(x=>x.id!==same[i].id); }
           }
-          this.ap -= best.cost;
-          lines.push(`Moved to ${this.regionName(best.to)} (-${best.cost} AP).`);
-          return true;
-        }
-        return false;
-      };
 
-      const tryBuildOrRecruit = ()=>{
-        if(this.ap<1) return false;
-
-        // prefer farms if food low
-        const wantFarm = p.food < 3;
-        const controlled = Array.from(p.regions).filter(rid => !this.isTransit(rid));
-        // recruit if have open slots and silver
-        if(p.silver>=1){
-          const rcan = controlled.filter(rid => (this.storedLevies[rid][p.id]||0) < levySlots(rid));
-          if(rcan.length && Math.random()<0.6){
-            const rid = choice(rcan);
-            this.actionRecruitAI(p, rid);
-            lines.push(`Recruited in ${this.regionName(rid)}.`);
+          // fight
+          const atkArmy = this.armies.find(x=>x.ownerId===p.id && x.regionId===rid);
+          const defArmy = this.armies.find(x=>x.ownerId!==p.id && x.regionId===rid);
+          if(atkArmy && defArmy && this.ap>=1){
+            const atkStance = this._aiChooseStance(p, atkArmy, defArmy);
+            const defP = this.getPlayer(defArmy.ownerId);
+            const defStance = this._aiChooseStance(defP, atkArmy, defArmy);
+            this._resolveBattle({atk:atkArmy, def:defArmy, regionId:rid, atkStance, defStance, silent:true});
+            lines.push(`Engaged enemy in ${this.regionName(rid)} (-${moveCost} AP move, -1 AP attack).`);
             return true;
           }
         }
-        // build if have silver
-        const bcan = controlled.filter(rid => this.buildings[rid].length < buildingSlots(rid));
-        if(!bcan.length) return false;
-        const rid = choice(bcan);
+      }
+      return false;
+    };
 
-        const type = wantFarm ? 'farm' : (style==='defensive' ? choice(['castle','farm','market']) : style==='aggressive' ? choice(['market','farm','hall']) : choice(['farm','market','hall']));
-        const baseCost = (type==='farm')?1 : (type==='market')?2 : 3;
-        const cost = Math.max(0, baseCost - (this.turnEffects.buildDiscount||0));
-        if(p.silver >= cost){
-          // build
-          p.silver -= cost;
-          this.buildings[rid].push(type);
-          this.ap -= 1;
-          if(this.turnEffects.buildDiscount) this.turnEffects.buildDiscount=0;
-          lines.push(`Built ${type} in ${this.regionName(rid)}.`);
+    const tryPillage = ()=>{
+      if(this.ap<1) return false;
+      const mys = myArmies();
+      for(const a of mys){
+        const rid = a.regionId;
+        if(this.isTransit(rid)) continue;
+        const enemyHere = this.armies.some(x=>x.regionId===rid && x.ownerId!==p.id);
+        if(enemyHere) continue;
+        const owner = this.controlOf(rid);
+        if(owner===p.id) continue;
+        const hasPillageable = (this.buildings[rid]||[]).some(b=>b!=='castle');
+        if(!hasPillageable) continue;
+        if(this.actionPillageAI(p, rid)){
+          lines.push(`Pillaged ${this.regionName(rid)} (-1 AP).`);
           return true;
         }
-        return false;
-      };
+      }
+      return false;
+    };
 
-      const tryCallUp = ()=>{
-        if(this.ap<=0) return false;
-        const total = this._totalStored(p);
-        if(total<=0) return false;
-        // don't starve: keep active units <= food+2
-        const active = this.armies.filter(a=>a.ownerId===p.id).reduce((s,a)=>s+a.units,0);
-        if(active >= p.food+2) return false;
+    const tryDefend = ()=>{
+      // Simple threat check: enemy in your land, or adjacent to capital
+      const capAdj = new Set(ADJ[p.capital].map(e=>e.to));
+      const enemies = enemyArmies();
+      const threatNearCap = enemies.filter(a=>a.regionId===p.capital || capAdj.has(a.regionId));
+      const threatInLand = enemies.filter(a=>p.regions.has(a.regionId));
 
-        const amount = Math.min(total, (this.ap>=2 ? 3 : 2));
-        const cost = (amount<=2)?1:2;
-        if(this.ap<cost) return false;
+      const threatUnits = (arr)=> arr.reduce((s,a)=>s+a.units,0);
 
-        // call up
-        let remaining = amount;
-        const sources = Array.from(p.regions).map(rid => ({rid, n:(this.storedLevies[rid][p.id]||0)})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n);
-        for(const s of sources){
-          if(remaining<=0) break;
-          const take = Math.min(s.n, remaining);
-          this.storedLevies[s.rid][p.id] -= take;
-          remaining -= take;
+      if(threatNearCap.length || threatInLand.length){
+        // 1) Call up if capital threatened and we look weaker.
+        const capArmy = this.armies.find(a=>a.ownerId===p.id && a.regionId===p.capital);
+        const capUnits = capArmy?capArmy.units:0;
+        const capThreat = threatUnits(threatNearCap);
+        if(capThreat>0 && capUnits < capThreat && totalStored()>0 && this.ap>=1){
+          // aggressive calls up more, defensive calls up sooner
+          const want = (style==='aggressive') ? 3 : 2;
+          callUp(want);
         }
-        let army = this.armies.find(a=>a.ownerId===p.id && a.regionId===p.capital);
-        if(!army){
-          army = { id: uid(), ownerId:p.id, regionId:p.capital, units:0 };
-          this.armies.push(army);
+
+        // 2) Move strongest army toward threatened region/capital
+        const targetRid = threatInLand.length ? threatInLand[0].regionId : p.capital;
+        const mys = myArmies().slice().sort((a,b)=>b.units-a.units);
+        for(const a of mys){
+          if(a.regionId===targetRid) continue;
+          const path = shortestPath(a.regionId, targetRid, (edge)=>this._edgeCostWithEffects(edge));
+          if(!path || path.length<2) continue;
+          const step = path[1];
+          const cost = apCost(a.regionId, step);
+          if(cost<=this.ap){
+            a.regionId = step;
+            this.ap -= cost;
+            lines.push(`Moved to defend (${this.regionName(step)}) (-${cost} AP).`);
+            return true;
+          }
         }
-        army.units += amount;
-        this.ap -= cost;
-        lines.push(`Called up ${amount} to capital.`);
+      }
+      return false;
+    };
+
+    const tryCaptureMove = ()=>{
+      const mys = myArmies();
+      if(!mys.length) return false;
+
+      // Targets: prefer enemy-controlled regions next to us; then missing cores; then any non-owned region.
+      const enemyOwned = REGIONS.map(r=>r.id).filter(rid=>{
+        if(this.isTransit(rid)) return false;
+        const owner = this.controlOf(rid);
+        return owner && owner!==p.id;
+      });
+
+      const missingCore = p.core.filter(rid => this.controlOf(rid)!==p.id);
+      const neutrals = REGIONS.map(r=>r.id).filter(rid=>{
+        if(this.isTransit(rid)) return false;
+        const owner = this.controlOf(rid);
+        return !owner && owner!==p.id;
+      });
+
+      const targets = [...new Set([...enemyOwned, ...missingCore, ...neutrals])];
+
+      let best = null;
+      for(const a of mys){
+        for(const t of targets){
+          const path = shortestPath(a.regionId, t, (edge)=> this._edgeCostWithEffects(edge));
+          if(!path || path.length<2) continue;
+          const step = path[1];
+          const cost = apCost(a.regionId, step);
+          if(cost>this.ap) continue;
+
+          // Score
+          let score = 0;
+          if(p.core.includes(t)) score += 6;
+          if(this.isCapital(t)) score += 3;
+          const owner = this.controlOf(t);
+          if(owner && owner!==p.id) score += 4;
+          score -= (path.length*0.25);
+
+          if(!best || score>best.score) best = {army:a, to:step, cost, target:t, score};
+        }
+      }
+
+      if(best){
+        best.army.regionId = best.to;
+        // merge friendly
+        const same = this.armies.filter(x=>x.ownerId===p.id && x.regionId===best.to);
+        if(same.length>1){
+          const keep = same[0];
+          for(let i=1;i<same.length;i++){ keep.units += same[i].units; this.armies = this.armies.filter(x=>x.id!==same[i].id); }
+        }
+        this.ap -= best.cost;
+        lines.push(`Moved to ${this.regionName(best.to)} (-${best.cost} AP).`);
         return true;
-      };
+      }
+      return false;
+    };
 
-      // Ensure AI has at least one army on board after a couple rounds
-      if(this.round>=2 && this.armies.filter(a=>a.ownerId===p.id).length===0){
-        tryCallUp();
+    const tryBuildOrRecruit = ()=>{
+      if(this.ap<1) return false;
+
+      const controlled = Array.from(p.regions).filter(rid => !this.isTransit(rid));
+      if(!controlled.length) return false;
+
+      // Recruit if we have empty slots and silver (especially if aggressive or threatened)
+      if(p.silver>=1){
+        const rcan = controlled.filter(rid => (this.storedLevies[rid][p.id]||0) < levySlots(rid));
+        const wantRecruit = (style==='aggressive') ? 0.75 : (style==='defensive') ? 0.65 : 0.55;
+        if(rcan.length && Math.random()<wantRecruit){
+          const rid = choice(rcan);
+          this.actionRecruitAI(p, rid);
+          lines.push(`Recruited in ${this.regionName(rid)} (-1 AP).`);
+          return true;
+        }
       }
 
-      // Spend AP
-      let guard = 12;
-      while(this.ap>0 && guard-->0){
-        if(tryAttack()) continue;
-        if(tryPillage()) continue;
-        if(tryCaptureMove()) continue;
-        if(tryBuildOrRecruit()) continue;
-        if(tryCallUp()) continue;
-        break;
-      }
+      // Build if we can
+      const bcan = controlled.filter(rid => this.buildings[rid].length < buildingSlots(rid));
+      if(!bcan.length) return false;
 
-      } catch(e){
-        console.warn(e);
-        lines.push('AI error — ended turn safely.');
-      }
+      const rid = choice(bcan);
+      const wantFarm = p.food < 3;
+      const type = wantFarm ? 'farm'
+        : (style==='defensive' ? choice(['castle','farm','market'])
+        : style==='aggressive' ? choice(['market','farm','hall'])
+        : choice(['farm','market','hall']));
+      const baseCost = (type==='farm')?1 : (type==='market')?2 : 3;
+      const cost = Math.max(0, baseCost - (this.turnEffects.buildDiscount||0));
+      if(p.silver < cost) return false;
 
-      this.sumPush(`${p.name} — Actions`, lines.length?lines:['No actions.']);
-      UI.render();
-      setTimeout(()=> this.endTurn(), 450);
+      p.silver -= cost;
+      this.buildings[rid].push(type);
+      this.ap -= 1;
+      if(this.turnEffects.buildDiscount) this.turnEffects.buildDiscount=0;
+      lines.push(`Built ${type} in ${this.regionName(rid)} (-1 AP).`);
+      return true;
+    };
+
+    // Ensure AI has at least one army after a couple rounds
+    if(this.round>=2 && myArmies().length===0){
+      callUp(2);
     }
 
-    actionRecruitAI(p, regionId){
+    // Defensive actions first (one step)
+    tryDefend();
+
+    // Spend remaining AP
+    let guard = 16;
+    while(this.ap>0 && guard-->0){
+      if(tryAttackHere()) continue;
+      if(tryInitiateBattleMove()) continue;
+      if(tryPillage()) continue;
+      if(tryCaptureMove()) continue;
+      if(tryBuildOrRecruit()) continue;
+      if(totalStored()>0 && this.ap>=1 && Math.random()<0.25){ if(callUp(2)) continue; }
+      break;
+    }
+
+  } catch(e){
+    console.warn(e);
+    lines.push('AI error — ended turn safely.');
+  }
+
+  this.sumPush(`${p.name} — Actions`, lines.length?lines:['No actions.']);
+  UI.render();
+  setTimeout(()=> this.endTurn(), 450);
+}
+
+actionRecruitAI(p, regionId){
       if(this.ap<1) return false;
       const cur = (this.storedLevies[regionId][p.id]||0);
       if(cur >= levySlots(regionId)) return false;
@@ -1447,37 +1636,33 @@
       return true;
     }
 
-    actionPillageAI(p, regionId){
-      if(this.ap < 1) return false;
-      if(this.isTransit(regionId)) return false;
-      const myHere = this.armies.some(a=>a.ownerId===p.id && a.regionId===regionId);
-      if(!myHere) return false;
-      if(this.controlOf(regionId)===p.id) return false;
+    
+actionPillageAI(p, regionId){
+  if(this.ap < 1) return false;
+  if(this.isTransit(regionId)) return false;
+  const myHere = this.armies.some(a=>a.ownerId===p.id && a.regionId===regionId);
+  if(!myHere) return false;
+  if(this.controlOf(regionId)===p.id) return false;
 
-      const idx = this.buildings[regionId].findIndex(b=>b!=='castle');
-      if(idx>=0){
-        const removed = this.buildings[regionId].splice(idx,1)[0];
-        this.logPush(`${p.name} pillaged ${this.regionName(regionId)}: destroyed ${removed} (+1 Silver).`);
-      } else {
-        this.logPush(`${p.name} pillaged ${this.regionName(regionId)} (+1 Silver).`);
-      }
-      p.silver += 1;
+  // Only allowed if there is at least one non-castle building to destroy.
+  const idx = this.buildings[regionId].findIndex(b=>b!=='castle');
+  if(idx<0) return false;
 
-      const prevOwner = this.controlOf(regionId);
-      if(prevOwner){
-        const prev = this.getPlayer(prevOwner);
-        prev?.regions.delete(regionId);
-        this.control[regionId] = null;
-        for(const pl of this.players){ this.storedLevies[regionId][pl.id] = 0; }
-      }
-      this.ap -= 1;
-      return true;
-    }
+  const removed = this.buildings[regionId].splice(idx,1)[0];
+
+  // Pillage never changes control; it also pauses capture progress this turn.
+  this.noCaptureThisTurn?.add(regionId);
+  if(this.captureTimers[regionId] && this.captureTimers[regionId].occupierId===p.id) delete this.captureTimers[regionId];
+
+  p.silver += 1;
+  this.logPush(`${p.name} pillaged ${this.regionName(regionId)}: destroyed ${removed} (+1 Silver).`);
+  this.ap -= 1;
+  return true;
+}
 
 
-    _edgeCostWithEffects(edge){
+_edgeCostWithEffects(edge){
       const a=edge.from, b=edge.to;
-      if(!this.isPlayable(a) || !this.isPlayable(b)) return 9999;
       const base = (ADJ[a].find(e=>e.to===b)?.cost) ?? 999;
       let cost = base;
       if(this.turnEffects.navCostPlus1 && isNavalEdge(a,b)) cost += 1;
@@ -2079,7 +2264,8 @@
         }
         const hasMyArmy = game.armies.some(a=>a.ownerId===human.id && a.regionId===regionId);
         const hasEnemyArmy = game.armies.some(a=>a.ownerId!==human.id && a.regionId===regionId);
-        if(hasMyArmy && ownerId!==human.id && !r.special){
+        const hasPillageable = b.some(x=>x!=='castle');
+        if(hasMyArmy && ownerId!==human.id && !r.special && hasPillageable){
           actions.push(`<button class="btn small" data-act="pillage">Pillage (-1AP)</button>`);
         }
         if(hasMyArmy){
@@ -2191,7 +2377,6 @@
       const con = $('#connections');
       con.innerHTML = '';
       for(const [a,b,cost] of EDGES){
-        if(game && (!game.isPlayable(a) || !game.isPlayable(b))) continue;
         const [x1,y1]=MAP.labels[a], [x2,y2]=MAP.labels[b];
         const line = document.createElementNS('http://www.w3.org/2000/svg','line');
         line.setAttribute('x1',x1); line.setAttribute('y1',y1);
@@ -2244,7 +2429,6 @@
           ev.stopPropagation();
           if(panzoom && (panzoom.dragging || panzoom._justDragged)) return;
           const rid = poly.getAttribute('data-rid');
-          if(game && !game.isPlayable(rid)) return;
 
           // If we're in move mode and this region is reachable, move instead of opening the sheet.
           if(game && game.canActHuman() && game.selected.mode==='move' && game.selected.armyId){
@@ -2385,22 +2569,19 @@
         poly.classList.toggle('reachable', reachable.has(rid));
         const owner = game.controlOf(rid);
         const isTransit = game.isTransit(rid);
-        const playable = game.isPlayable(rid);
-        // Base map colours: water is handled by the background rect; land defaults to green.
-        const base = isTransit ? 'rgba(148,163,184,0.16)' : (playable ? 'rgba(34,197,94,0.22)' : 'rgba(2,6,23,0.88)');
-        let fill = base;
-        if(!playable){
-          poly.setAttribute('fill', fill);
-          poly.setAttribute('stroke','rgba(148,163,184,0.10)');
-          poly.setAttribute('stroke-width','1.5');
-          return;
-        }
-        if(owner){
+const inactive = game.isInactive(rid);
+// Base map colours: water is handled by the background; land defaults to green, but inactive
+// (non-player) kingdoms are dimmed until conquered.
+const base = isTransit ? 'rgba(148,163,184,0.16)'
+  : (inactive && !owner ? 'rgba(2,6,23,0.55)' : 'rgba(34,197,94,0.22)');
+let fill = base;
+if(owner){
           const col = game.colorOf(owner);
           fill = `color-mix(in oklab, ${col} 35%, rgba(30,41,59,0.55))`;
         }
         poly.setAttribute('fill', fill);
-        poly.setAttribute('stroke', (rid===game.selected.regionId) ? 'rgba(56,189,248,0.95)' : 'rgba(148,163,184,0.25)');
+        const defaultStroke = (inactive && !owner) ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.25)';
+        poly.setAttribute('stroke', (rid===game.selected.regionId) ? 'rgba(56,189,248,0.95)' : defaultStroke);
         poly.setAttribute('stroke-width', (rid===game.selected.regionId) ? '5' : '2');
         // capital border
         if(game.isCapital(rid)){
