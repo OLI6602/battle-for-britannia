@@ -1,5 +1,5 @@
-/* Battle for Britannia v10 service worker */
-const CACHE = 'bfb-v10-2025-12-30';
+/* Battle for Britannia v12 service worker */
+const CACHE = 'bfb-v12-2025-12-31';
 const ASSETS = [
   './',
   './index.html',

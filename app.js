@@ -101,7 +101,9 @@
     ['tynedale','deira',2],
     ['cumbria','gwynedd',2],
     ['cumbria','cheshire',2],
+    ['tamworth','cheshire',1],
     ['cheshire','lindsey',1],
+    ['east_anglia','lindsey',1],
     ['lindsey','deira',2],
     ['gwynedd','powys',2],
     ['powys','cheshire',1],
@@ -884,25 +886,66 @@
       if(!myHere){ TOAST.show('Need an army here.'); return; }
       if(this.controlOf(regionId)===p.id){ TOAST.show('Cannot pillage your own region.'); return; }
 
-      // remove one non-castle building if present
-      const idx = this.buildings[regionId].findIndex(b=>b!=='castle');
-      if(idx>=0){
-        const removed = this.buildings[regionId].splice(idx,1)[0];
-        this.logPush(`Pillaged ${this.regionName(regionId)}: destroyed ${removed} (+1 Silver).`);
-      } else {
-        this.logPush(`Pillaged ${this.regionName(regionId)} (+1 Silver).`);
+      const ICON = {farm:'🌾', market:'💰', hall:'👑', castle:'🏰'};
+      const pillageable = this.buildings[regionId].filter(b=>b!=='castle');
+
+      const doPillage = (chosenType)=>{
+        let removed = null;
+        if(chosenType){
+          const idx = this.buildings[regionId].findIndex(b=>b===chosenType);
+          if(idx>=0) removed = this.buildings[regionId].splice(idx,1)[0];
+        } else if(pillageable.length>0){
+          const idx = this.buildings[regionId].findIndex(b=>b!=='castle');
+          if(idx>=0) removed = this.buildings[regionId].splice(idx,1)[0];
+        }
+
+        p.silver += 1;
+        this.ap -= 1;
+
+        if(removed){
+          this.logPush(`${p.name} pillaged ${this.regionName(regionId)}: destroyed ${removed} (+1 Silver).`);
+        } else {
+          this.logPush(`${p.name} pillaged ${this.regionName(regionId)} (+1 Silver).`);
+        }
+        UI.render();
+      };
+
+      // Human: choose which building to destroy (if multiple). Pillage does NOT remove control.
+      if(!p.isAI && pillageable.length>1){
+        const items = pillageable.map((b)=>(
+          `<button class="btn small" data-pillage-type="${b}">${ICON[b]||'🏚️'} ${(b.charAt(0).toUpperCase()+b.slice(1))}</button>`
+        )).join('');
+        UI.openModal(
+          'Pillage',
+          `<div class="sub">Choose a building to destroy in <b>${escapeHTML(this.regionName(regionId))}</b>.</div>`+
+          `<div class="list">${items}</div>`,
+          [{ text:'Cancel', kind:'ghost', onClick:()=> UI.closeModal() }]
+        );
+        setTimeout(()=>{
+          document.querySelectorAll('[data-pillage-type]').forEach(btn=>{
+            btn.addEventListener('click', ()=>{
+              const t = btn.getAttribute('data-pillage-type');
+              UI.closeModal();
+              doPillage(t);
+            });
+          });
+        },0);
+        return;
       }
-      p.silver += 1;
-      // Region remains uncontrolled after pillage
-      const prevOwner = this.controlOf(regionId);
-      if(prevOwner){
-        const prev = this.getPlayer(prevOwner);
-        prev?.regions.delete(regionId);
-        this.control[regionId] = null;
-        for(const pl of this.players){ this.storedLevies[regionId][pl.id] = 0; }
+
+      // AI: target highest-value building if any; otherwise pillage for +1 silver.
+      if(p.isAI && pillageable.length>0){
+        const prio = ['hall','market','farm'];
+        let chosen = null;
+        for(const t of prio){
+          if(this.buildings[regionId].includes(t)){ chosen = t; break; }
+        }
+        doPillage(chosen);
+        return;
       }
-      this.ap -= 1;
-      UI.render();
+
+      // Single/none choice
+      doPillage(pillageable.length===1 ? pillageable[0] : null);
     }
 
     actionDisband(armyId, n=1){
@@ -911,13 +954,42 @@
       if(this.ap < 1){ TOAST.show('No AP.'); return; }
       const a = this.armies.find(x=>x.id===armyId);
       if(!a || a.ownerId!==p.id){ TOAST.show('Select your army.'); return; }
+
       n = Math.max(1, Math.floor(n||1));
       n = Math.min(n, a.units, this.ap);
       if(n<=0){ TOAST.show('No AP.'); return; }
+
+      // Remove from active army
       a.units -= n;
       if(a.units<=0) this.armies = this.armies.filter(x=>x.id!==a.id);
+
+      // Return disbanded troops to stored levies where slots are available.
+      const targets = [];
+      if(a.regionId && p.regions.has(a.regionId)) targets.push(a.regionId);
+      if(p.capital && p.regions.has(p.capital) && !targets.includes(p.capital)) targets.push(p.capital);
+      for(const rid of p.regions){ if(!targets.includes(rid)) targets.push(rid); }
+
+      let placed = 0;
+      for(const rid of targets){
+        const cap = levySlots(rid);
+        if(cap<=0) continue;
+        const cur = (this.storedLevies[rid][p.id]||0);
+        const space = cap - cur;
+        if(space<=0) continue;
+        const add = Math.min(space, n - placed);
+        this.storedLevies[rid][p.id] = cur + add;
+        placed += add;
+        if(placed>=n) break;
+      }
+
+      const lost = n - placed;
+
       this.ap -= n;
-      this.logPush(`Disbanded ${n} unit(s) (-${n} AP).`);
+      if(lost>0){
+        this.logPush(`Disbanded ${n} unit(s): returned ${placed} to levy slots, ${lost} lost (no space) (-${n} AP).`);
+      } else {
+        this.logPush(`Disbanded ${n} unit(s): returned to levy slots (-${n} AP).`);
+      }
       UI.render();
     }
 
